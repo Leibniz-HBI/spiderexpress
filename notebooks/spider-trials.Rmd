@@ -1,0 +1,133 @@
+---
+title: "TGSpider trials"
+output: html_notebook
+---
+```{r setup}
+library(dplyr)
+library(purrr)
+library(rvest)
+library(xml2)
+library(DBI)
+
+source('../R/parse_telegram.r')
+```
+
+```{r}
+spider <- function(handle, con, iteration = NULL, max_iteration = 10, fans = 10) {
+
+  if (!'edge_list' %in% dbListTables(con)) {
+    dbCreateTable(con, 'edge_list', c('from' = "TEXT",'to' = "TEXT"))
+  }
+  edge_list <- tbl(con, 'edge_list')
+
+  if (!'node_list' %in% dbListTables(con)) {
+    dbCreateTable(con, 'node_list', c(
+        'handle' = "TEXT",
+        'name' = "TEXT",
+        'url' = "TEXT",
+        'subscriber_count' = "TEXT",
+        'photos_count' = "TEXT",
+        'videos_count' = "TEXT",
+        'files_count' = "TEXT",
+        'links_count' = "TEXT",
+        'visited' = "TEXT"
+      )
+    )
+  }
+  node_list <- tbl(con, 'node_list')
+  
+  if (is.null(iteration)) {
+    iteration <- 0
+  }
+  messages <- tibble()
+  seed_url <- paste0('https://www.t.me/s/', handle)
+  
+  
+  visit_node <- function(account) {
+    seed_url <- paste0('https://t.me/s/', account)
+    
+    # visit node
+    writeLines(paste('Visiting', seed_url))
+    seed_html <- xml2::read_html(seed_url)
+    try({
+      messages <-  parse_telegram_messages(seed_html)
+      user <- parse_telegram_user(seed_html)
+      
+      if (nrow(user) > 0) {
+        dbAppendTable(con, 'node_list', user)
+      }
+     
+      # generate edges and append
+      if (nrow(messages) > 0 & 'link' %in% names(messages)) {
+        seed_edges <- messages %>% 
+          select(link) %>% 
+          tidyr::unnest(link) %>% 
+          tidyr::extract(link, "to", 'https://t.me/(\\w+)') %>% 
+          filter(!is.na(to)) %>% 
+          distinct(to) %>% 
+          mutate(from = account)
+        dbAppendTable(con, 'edge_list', seed_edges)
+      }
+    })
+  }
+
+  while (iteration < max_iteration) {
+
+    candidates <- edge_list %>% 
+      anti_join(
+        node_list, by = c("to" = "handle")
+      ) %>% 
+      group_by(to) %>% 
+      summarise(n = n()) %>% 
+      arrange(desc(n)) %>% 
+      head(fans * 4) %>% 
+      collect() %>% 
+      # distinct(to) %>% 
+      sample_n(if_else(fans > n(), n(), as.integer(fans))) %>%
+      pluck('to') 
+    
+    writeLines(paste('Visiting cue:', paste(candidates, sep=", ")))
+    
+    walk(
+      candidates,
+      visit_node
+    )
+    iteration <- iteration + 1
+  }
+}
+```
+
+
+```{r}
+seed_handle <- 'lapazmusikofficial'
+db_location = ":memory:"
+```
+
+```{r open-test-db}
+con <- DBI::dbConnect(RSQLite::SQLite(), db_location)
+```
+
+```{r}
+test <- spider(seed_handle, con, fans = 15, max_iteration = 250)
+```
+
+```{r}
+edges <- tbl(con, 'edge_list')
+nodes <- tbl(con, 'node_list')
+
+loc_edges <- edges %>% collect()
+loc_nodes <- nodes %>% collect()
+g <- as_tbl_graph(loc_edges) %>% 
+  convert(to_simple)
+g %>% mutate(cent = centrality_degree(mode = "in")) %>% ggraph(weights = "") + geom_edge_link0(alpha = .2) + geom_node_point(aes(size = cent)) + geom_node_label(aes(label = name), data = ~slice_max(.x, cent, n = 15), repel = T)
+```
+
+```{r save_csvs}
+readr::write_csv(loc_edges, paste0('../data/', lubridate::today(),'-edges-', seed_handle, '.csv'))
+readr::write_csv(loc_nodes, paste0('../data/', lubridate::today(), '-nodes-', seed_handle, '.csv'))
+```
+
+
+```{r}
+dbDisconnect(con)
+```
