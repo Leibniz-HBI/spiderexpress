@@ -34,6 +34,7 @@ spider <- function(handle, con, iteration = NULL, max_iteration = 10, fans = 10)
       )
     )
   }
+  
   node_list <- tbl(con, 'node_list')
   
   if (is.null(iteration)) {
@@ -51,10 +52,13 @@ spider <- function(handle, con, iteration = NULL, max_iteration = 10, fans = 10)
     seed_html <- xml2::read_html(seed_url)
     try({
       messages <-  parse_telegram_messages(seed_html)
-      user <- parse_telegram_user(seed_html)
+      user <- parse_telegram_user(seed_html) %>% 
+        mutate(visited = 'True')
       
       if (nrow(user) > 0) {
         dbAppendTable(con, 'node_list', user)
+      } else {
+        dbAppentTable(con, 'node_list', tibble(handle = handle, visited = "True"))
       }
      
       # generate edges and append
@@ -100,7 +104,7 @@ spider <- function(handle, con, iteration = NULL, max_iteration = 10, fans = 10)
 
 ```{r}
 seed_handle <- 'lapazmusikofficial'
-db_location = ":memory:"
+db_location = paste0(lubridate::today(), "-", seed_handle, ".sqlite")
 ```
 
 ```{r open-test-db}
@@ -119,7 +123,12 @@ loc_edges <- edges %>% collect()
 loc_nodes <- nodes %>% collect()
 g <- as_tbl_graph(loc_edges) %>% 
   convert(to_simple)
-g %>% mutate(cent = centrality_degree(mode = "in")) %>% ggraph(weights = "") + geom_edge_link0(alpha = .2) + geom_node_point(aes(size = cent)) + geom_node_label(aes(label = name), data = ~slice_max(.x, cent, n = 15), repel = T)
+g %>%
+  mutate(cent = centrality_degree(mode = "in")) %>%
+  ggraph(weights = "") +
+  geom_edge_link0(alpha = .2) +
+  geom_node_point(aes(size = cent)) +
+  geom_node_label(aes(label = name), data = ~slice_max(.x, cent, n = 15), repel = T)
 ```
 
 ```{r save_csvs}
