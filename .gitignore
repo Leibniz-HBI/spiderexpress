@@ -4,3 +4,9 @@
 .Ruserdata
 
 data/
+.pytest_cache/
+*.csv
+*.sqlite*
+*.lock
+*.rds
+__pycache__/
