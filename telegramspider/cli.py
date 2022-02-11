@@ -1,7 +1,6 @@
+from pathlib import Path
 import click
 from loguru import logger as log
-
-import click
 from .Spider import Spider
 
 @click.group()
@@ -12,16 +11,10 @@ def cli(ctx):
 
 
 @cli.command()
+@click.argument('config', type=click.File())
 @click.pass_context
-def start(ctx):
+def start(ctx, config: Path):
     pass
-
-@cli.command()
-@click.pass_context
-def restart(ctx):
-    pass
-
-
 
 if __name__ == 'main':
     cli(app = Spider())
