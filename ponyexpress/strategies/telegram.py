@@ -1,4 +1,4 @@
-from ..Spider import Strategy
+from ..Strategy import Strategy
 
 
 class TelegramStrategy(Strategy):

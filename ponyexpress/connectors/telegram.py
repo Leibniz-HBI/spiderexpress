@@ -1,7 +1,8 @@
 import re
 import pandas as pd
 from lxml import html
-from ..Spider import Connector
+
+from ..Connector import Connector
 class TelegramConnector(Connector):
 
     def get_layer(self, node_names: list[str]):
