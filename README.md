@@ -22,3 +22,11 @@ seeds: # optional, either seeds or seed_file
  - things_to_add
 seed_file: 'seeds.txt' # seeds_file takes precedence
 ```
+## Developer Install
+
+- Install poetry
+- Clone repository
+- In the cloned repository's root directory run poetry install
+- Run poetry shell to start development virtualenv
+- Run pytest to run all tests
+

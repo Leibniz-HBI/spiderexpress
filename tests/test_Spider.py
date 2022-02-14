@@ -2,8 +2,14 @@ from pytest import fixture
 
 # This is the main application, it should load the config, dispatch jobs and keep
 # track of its state, handle database connections and manage set up and tear down.
+# It is loaded by click has soon has the application starts and the configuration
+# is loaded automatically by the initializer.
 
 def test_initializer():
+    """
+    The initializer should search all candidate configs so they can be shown in
+    auto-completion and loaded when selected.
+    """
     pass
 
 def test_load_config():

@@ -14,16 +14,16 @@ def complete_project_name(ctx, param, incomplete):
     """
     Searches/lists all project confs in the current context
     """
-    return [_.name for _ in ctx.app.projects if _.name.startswidth(incomplete)]
+    return [_.name for _ in ctx.app.available_configrations if _.name.startswidth(incomplete)]
 
 @cli.command()
 @click.argument(
     'config',
-    type=click.STRING(),
+    type=click.STRING,
     shell_complete=complete_project_name
 )
 @click.pass_context
-def start(ctx):
+def start(ctx, config: str):
     pass
 
 @click.pass_context

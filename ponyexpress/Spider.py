@@ -1,12 +1,40 @@
+from pathlib import Path
 import re
 import pandas as pd
 from lxml import html
 from loguru import logger as log
+from abc import ABC, abstractclassmethod
+
+from ponyexpress.strategies import strategies
+
+class Strategy(ABC):
+
+    @abstractclassmethod
+    def get_sample(self, nodes, edges, visited_nodes) -> list[str]:
+        pass
+
+class Connector(ABC):
+
+    @abstractclassmethod
+    def get_layer(self, node_names: str) -> tuple[pd.DataFrame, pd.DataFrame]:
+        pass
+    
 
 class Spider(object):
 
     def __init__(self) -> None:
-        pass
+        # search current working directory for yml files which could be a
+        # spider configuration file
+        self.available_configurations = [
+            {
+                'name': _.name.removesuffix('.yml'),
+                'path': _
+            }\
+             for _ in Path().glob('*.yml')\
+        ]
+        # set the loaded configuration to None, as it is not loaded yet
+        self.configuration = None
+
 
     def start():
         pass
@@ -24,7 +52,17 @@ class Spider(object):
         pass
 
     def spider(self) -> None:
-        #
+        # start with seed list
+        seeds = self.seeds
+        
+        edges, nodes = self.connector.get_layer(seeds)
+        self.visited.append(seeds)
+
+        new_seeds = self.strategy.get_sample(nodes, edges, self.visited)
+
+    def get_strategy(self, strategy: str) -> None:
+        if strategy in strategies: 
+            self.strategy = strategies[strategy]
         pass
 
 
