@@ -1,4 +1,4 @@
-from telegramspider.Spider import Strategy
+from ..Spider import Strategy
 
 
 class TelegramStrategy(Strategy):
