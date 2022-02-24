@@ -8,7 +8,7 @@ class Configuration(yaml.YAMLObject):
 
     def __init__(
         self,
-        seeds: list(str) or None,
+        seeds: list[str] or None,
         seed_file: str or None,
         project_name: str = 'spider',
         db_url: str = 'sqlite:///{project_name}.sqlite',
