@@ -10,3 +10,6 @@ data/
 *.lock
 *.rds
 __pycache__/
+
+dist/
+notebooks/
