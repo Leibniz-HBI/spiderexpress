@@ -9,37 +9,38 @@ Leibniz-Institute for Media Research, 2022
 
 
 from pathlib import Path
-from typing import Callable
+from typing import Callable, Dict, Optional, Union
 
 import pandas as pd
 import yaml
 
 Connector = Callable[[list[str]], tuple[pd.DataFrame, pd.DataFrame]]
 Strategy = Callable[[pd.DataFrame, pd.DataFrame], list[str]]
+PlugInSpec = Union[str, Dict[str, Dict[str, Union[str, int]]]]
 
 
 class Configuration(yaml.YAMLObject):
     """Configuration-File Wrapper"""
 
-    _yaml_tag = "!telegramspider:Configuration"
+    yaml_tag = "!ponyexpress:Configuration"
 
     def __init__(
         self,
-        seeds: list[str] or None,
-        seed_file: str or None,
+        seeds: Optional[list[str]] = None,
+        seed_file: Optional[str] = None,
         project_name: str = "spider",
         db_url: str = "sqlite:///{project_name}.sqlite",
         edge_table_name: str = "edge_list",
         node_table_name: str = "node_list",
-        strategy: str = "spikyball",
-        connector: str = "telegram",
+        strategy: PlugInSpec = "spikyball",
+        connector: PlugInSpec = "telegram",
         max_iteration: int = 10000,
         batch_size: int = 150,
     ) -> None:
         if seed_file is not None:
-            self.seed_file = Path(seed_file)
-            if self.seed_file.exists():
-                with self.seed_file.open("r", encoding="utf8") as file:
+            _seed_file = Path(seed_file)
+            if _seed_file.exists():
+                with _seed_file.open("r", encoding="utf8") as file:
                     self.seeds = list(file.readlines())
         else:
             self.seeds = seeds
