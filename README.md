@@ -1,3 +1,7 @@
+# ponyexpress
+
+A cookiecutter template for SMO/MRML python tools
+
 ## Project set up
 
 ```
@@ -30,3 +34,7 @@ seed_file: 'seeds.txt' # seeds_file takes precedence
 - Run poetry shell to start development virtualenv
 - Run pytest to run all tests
 
+
+---
+
+[Philipp Kessling](mailto:p.kessling@leibniz-hbi.de) under MIT.

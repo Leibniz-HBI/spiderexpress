@@ -1,24 +1,13 @@
-from pathlib import Path
 import re
+from pathlib import Path
+
 import pandas as pd
-from lxml import html
 from loguru import logger as log
-from abc import ABC, abstractclassmethod
+from lxml import html
 
 from ponyexpress.strategies import strategies
 
-class Strategy(ABC):
 
-    @abstractclassmethod
-    def get_sample(self, nodes, edges, visited_nodes) -> list[str]:
-        pass
-
-class Connector(ABC):
-
-    @abstractclassmethod
-    def get_layer(self, node_names: str) -> tuple[pd.DataFrame, pd.DataFrame]:
-        pass
-    
 
 class Spider(object):
 
