@@ -1,35 +1,43 @@
-from pathlib import Path
+"""Command Lie Interface definitions for ponyexpress.
+
+Author
+------
+
+Philipp Kessling, Leibniz-Institute for Media Research, 2022
+
+Todo
+----
+    * Refine verbs/commands  for the CLI
+    * find a mechanism for stopping/starting collections
+"""
 import click
 from loguru import logger as log
-from .Spider import Spider
+
+from .spider_application import Spider
+
 
 @click.group()
 @click.pass_context
 def cli(ctx):
+    """traverse the desert"""
     ctx.ensure_object(Spider)
-    log.debug('Hello!')
+    log.debug("Hello!")
 
 
-def complete_project_name(ctx, param, incomplete):
+def complete_project_name(*_, incomplete: str) -> list[str]:
     """
     Searches/lists all project confs in the current context
     """
-    return [_.name for _ in ctx.app.available_configrations if _.name.startswidth(incomplete)]
+    return [
+        _["name"]
+        for _ in Spider.available_configurations()
+        if isinstance(_["name"], str) and _["name"].startswith(incomplete)
+    ]
+
 
 @cli.command()
-@click.argument(
-    'config',
-    type=click.STRING,
-    shell_complete=complete_project_name
-)
+@click.argument("config", type=click.STRING, shell_complete=complete_project_name)
 @click.pass_context
-def start(ctx, config: str):
-    pass
-
-@click.pass_context
-def add(ctx):
-    pass
-
-
-if __name__ == 'main':
-    cli(app = Spider())
+def start(ctx: click.Context, config: str):
+    """start a job"""
+    ctx.obj.start(config)
