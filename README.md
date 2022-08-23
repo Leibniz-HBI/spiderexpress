@@ -9,6 +9,7 @@ my_project/
 |- my_project.sqlite
 |- my_project.yml
 |- my_projects_seed_file.txt
+```
 
 ## Configuration
 
