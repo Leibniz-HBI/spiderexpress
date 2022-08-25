@@ -33,9 +33,9 @@ def complete_project_name(*args) -> list[str]:
     Searches/lists all project confs in the current context
     """
     return [
-        _["name"]
+        _.name
         for _ in Spider.available_configurations()
-        if isinstance(_["name"], str) and _["name"].startswith(args[2])
+        if isinstance(_.name, str) and _.name.startswith(args[2])
     ]
 
 
