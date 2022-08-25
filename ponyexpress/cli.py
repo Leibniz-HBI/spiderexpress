@@ -1,4 +1,4 @@
-"""Command Lie Interface definitions for ponyexpress.
+"""Command Line Interface definitions for ponyexpress.
 
 Author
 ------
@@ -7,8 +7,9 @@ Philipp Kessling, Leibniz-Institute for Media Research, 2022
 
 Todo
 ----
-    * Refine verbs/commands  for the CLI
-    * find a mechanism for stopping/starting collections
+
+- Refine verbs/commands for the CLI
+- find a mechanism for stopping/starting collections
 """
 from pathlib import Path
 
