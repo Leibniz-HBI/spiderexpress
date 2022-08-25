@@ -25,7 +25,7 @@ message_paths = {
     "user": ".//a[@class='tgme_widget_message_owner_name']/descendant-or-self::*/text()",
     "from_author": ".//span[@class='tgme_widget_message_from_author']/descendant-or-self::*/text()",
     "text": "./div[contains(@class, 'tgme_widget_message_text')]/descendant-or-self::*/text()",
-    "link": ".//div[conta# pylint: disable=C0301ins(@class, 'tgme_widget_message_text')]//a/@href",
+    "link": ".//div[contains(@class, 'tgme_widget_message_text')]//a/@href",
     #       "reply_to_user" : ".//a[@class='tgme_widget_message_reply']//span[@class='tgme_widget_message_author_name'/descendant-or-self::*/text()]",
     #       "reply_to_text" : ".//a[@class='tgme_widget_message_reply']//div[@class='tgme_widget_message_text']/descendant-or-self::*/text()",
     #       "reply_to_link" : ".//a[@class='tgme_widget_message_reply']/@href",
@@ -72,12 +72,16 @@ def get_messages(page) -> pd.DataFrame:
     def extract_multiple2(tree, xpaths):
         for name, xpath in xpaths.items():
             # first post-processing steps
-            if name != "link":
-                data = "".join(tree.xpath(xpath))
+
+            log.debug(f"Parsing {name}.")
+            parsed = tree.xpath(xpath)
+
+            if name == "link":
+                data = ",".join(parsed)
+            else:
+                data = "".join(parsed)
                 if name == "image_url":
                     data = re.findall(r"(?<=url\(').+(?=')", data)
-            else:
-                data = ",".join(tree.xpath(xpath))
             if data == "":
                 data = None
             yield pd.Series(data=data, name=name, dtype="object")
