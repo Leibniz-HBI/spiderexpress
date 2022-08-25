@@ -8,6 +8,7 @@ Leibniz-Institute for Media Research, 2022
 """
 
 
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Callable, Dict, Optional, Union
 
@@ -52,3 +53,11 @@ class Configuration(yaml.YAMLObject):
         self.node_table_name = node_table_name
         self.max_iteration = max_iteration
         self.batch_size = batch_size
+
+
+@dataclass
+class ConfigurationItem:
+    """A minimal class to transport information on available configuration"""
+
+    path: Path
+    name: str

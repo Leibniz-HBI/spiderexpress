@@ -1,14 +1,39 @@
-"""Application class for ponyexpress"""
+"""Application class for ponyexpress
+
+Philipp Kessling,
+Leibniz-Institute for Media Research, 2022.
+
+Constants
+---------
+
+CONNECTOR_GROUP :
+    str : group name of our connector entrypoint
+STRATEGY_GROUP :
+    str : group name of our strategy entrypoint
+
+ToDos
+-----
+- iteration in Spider.spider is not correctly implemented yet
+- implement the get_neighbor-methods!
+"""
 
 from functools import partial, singledispatchmethod
 from importlib.metadata import entry_points
 from pathlib import Path
-from typing import Optional, Union
+from sqlite3 import Connection
+from typing import Optional
 
+import pandas as pd
 import yaml
 from loguru import logger as log
 
-from ponyexpress.types import Configuration, Connector, PlugInSpec, Strategy
+from ponyexpress.types import (
+    Configuration,
+    ConfigurationItem,
+    Connector,
+    PlugInSpec,
+    Strategy,
+)
 
 CONNECTOR_GROUP = "ponyexpress.connectors"
 STRATEGY_GROUP = "ponyexpress.strategies"
@@ -34,9 +59,12 @@ class Spider:
         """
         # set the loaded configuration to None, as it is not loaded yet
         self.configuration: Optional[Configuration] = None
+        self.connector: Optional[Connector] = None
+        self.strategy: Optional[Strategy] = None
+        self._cache_: Optional[Connection] = None
 
     @classmethod
-    def available_configurations(cls) -> list[dict[str, Union[str, Path]]]:
+    def available_configurations(cls) -> list[ConfigurationItem]:
         """returns the names of available configuration files in the working directory
 
         Returns
@@ -45,7 +73,7 @@ class Spider:
 
         """
         return [
-            {"name": _.name.removesuffix(".pe.yml"), "path": _}
+            ConfigurationItem(_, _.name.removesuffix(".pe.yml"))
             for _ in Path().glob("*.pe.yml")
         ]
 
@@ -58,7 +86,10 @@ class Spider:
         config : str : the configuration's name which we want to load-
         """
         self.load_config(config)
-        self.spider()
+        if self.configuration:
+            self.connector = self.get_connector(self.configuration.connector)
+            self.strategy = self.get_strategy(self.configuration.strategy)
+            self.spider()
 
     # def restart(self):
     #     pass
@@ -71,15 +102,13 @@ class Spider:
         config_name : str : the name of the configuration to load
         """
         log.debug(
-            f"Choosing form these configurations: {Spider.available_configurations()}"
+            f"Choosing from these configurations: {Spider.available_configurations()}"
         )
 
-        config = [
-            _ for _ in Spider.available_configurations() if _["name"] == config_name
-        ]
+        config = [_ for _ in Spider.available_configurations() if _.name == config_name]
 
         if len(config) == 1:
-            with config[0]["path"].open("r", encoding="utf8") as file:
+            with config[0].path.open("r", encoding="utf8") as file:
                 self.configuration = yaml.full_load(file)
         else:
             log.warning(
@@ -94,16 +123,74 @@ class Spider:
         """
         if not self.configuration:
             log.error("No configuration loaded. Aborting.")
-        else:
+            raise ValueError("Seed list is empty or non-existent.")
+        if not self.configuration.seeds or len(self.configuration.seeds) == 0:
+            raise ValueError("Seed list is empty or non-existent.")
             # start with seed list
-            seeds = self.configuration.seeds
-            connector = self.get_connector(self.configuration.connector)
-            strategy = self.get_strategy(self.configuration.strategy)
 
-            if seeds is not None:
-                for _ in range(self.configuration.max_iteration):
-                    edges, nodes = connector(seeds)
-                    seeds = strategy(edges, nodes)
+        if self.connector is None or self.strategy is None:
+            raise ValueError("Seed list is empty or non-existent.")
+        seeds = self.configuration.seeds.copy()
+
+        for _ in range(self.configuration.max_iteration):
+            edges, nodes = self.connector(seeds)
+            seeds = self.strategy(edges, nodes)
+
+    # section: database/network interactions
+
+    def get_node_info(self, node_names: list[str]) -> pd.DataFrame:
+        """returns the selected nodes properties.
+
+        The infos are either read from cache or requested via the connector.
+
+        Params
+        ------
+        node_names : list[str] : selected node names
+
+        Returns
+        -------
+        pd.DataFrame : a table (node_name is the first column)
+        """
+        # map each node
+        def _mapper_(node_name: str):
+            # look for the node in the cache
+            # if it is there
+
+            cached_result = self._get_cached_node_data_(node_name)
+            if cached_result is not None:
+                return cached_result
+                # return the table row to the mapper
+            # else
+            # request infos for for node from connector
+            return self._dispatch_connector_for_node_(node_name)
+
+        _ret_ = [_mapper_(_) for _ in node_names]
+
+        return pd.concat(_ret_)
+
+    @singledispatchmethod
+    def get_neighbors(self, for_node_name) -> list[str]:
+        """retrieve the neighbors for given node or nodes.
+
+        Parameters
+        ----------
+
+        for_node_name :
+            str OR list[str] : either a single node name as string or a list of those.
+
+        Returns
+        -------
+        list[str] : the handles of the neighboring nodes
+        """
+        raise NotImplementedError()
+
+    @get_neighbors.register
+    def _(self, for_node_name: str) -> list[str]:
+        return [for_node_name]
+
+    @get_neighbors.register
+    def _(self, for_node_names: list[str]) -> list[str]:
+        return for_node_names
 
     # section: plugin loading
 
@@ -143,6 +230,34 @@ class Spider:
         return self._get_plugin_from_spec_(connector_name, CONNECTOR_GROUP)
 
     # section: private methods
+
+    def _dispatch_connector_for_node_(self, node: str) -> pd.DataFrame:
+        if self.configuration and self.connector:
+            edges, nodes = self.connector([node])
+
+            edges.to_sql(
+                self.configuration.edge_table_name,
+                self._cache_,
+                if_exists="append",
+                index=False,
+            )
+            nodes.to_sql(
+                self.configuration.node_table_name,
+                self._cache_,
+                if_exists="append",
+                index=False,
+            )
+            return nodes
+        raise ValueError("Configuration or Connector are not present")
+
+    def _get_cached_node_data_(self, node_name: str) -> pd.DataFrame:
+        if self.configuration and self._cache_:
+            table_name = self.configuration.node_table_name
+            return pd.read_sql_query(
+                f"SELECT * FROM {table_name} WHERE {table_name} = '{node_name}'",
+                self._cache_,
+            )
+        raise ValueError("Configuration or DatabaseConnection are not present")
 
     @singledispatchmethod
     def _get_plugin_from_spec_(self, spec: PlugInSpec, group: str):
