@@ -8,10 +8,11 @@ Constants
 
 CONNECTOR_GROUP :
     str : group name of our connector entrypoint
+
 STRATEGY_GROUP :
     str : group name of our strategy entrypoint
 
-ToDos
+Todo
 -----
 - iteration in Spider.spider is not correctly implemented yet
 - implement the get_neighbor-methods!
@@ -145,7 +146,8 @@ class Spider:
 
         Params
         ------
-        node_names : list[str] : selected node names
+        node_names :
+            list[str] : selected node names
 
         Returns
         -------
