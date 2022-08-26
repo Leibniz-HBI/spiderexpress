@@ -6,13 +6,80 @@ Leibniz-Institute for Media Research, 2022
 
 # pylint: disable=W
 
-from typing import Tuple
+from dataclasses import dataclass
+from typing import Tuple, Union
 
 import pandas as pd
+from loguru import logger as log
+
+from ponyexpress.types import fromdict
+
+
+@dataclass
+class ProbabilityConfiguration:
+    """stores the configuration for a single probability mass function
+
+    Parameters
+    ----------
+
+    coefficient :
+        float : yup
+
+    weights :
+        dict[str, float] : keys are interpreted as columns in the node data
+    """
+
+    coefficient: float
+    weights: dict[str, float]
+
+
+@dataclass
+class SamplerConfiguration:
+    """stores the configuration for all mass probability functions
+
+    Parameters
+    ----------
+
+    source_node_probability :
+        ProbabilityConfiguration : giving the equation for the source node's sam
+        pling probability
+
+    target_node_probability :
+        ProbabilityConfiguration : giving the equation for the target node's sam
+        pling probability
+
+    edge_probability :
+        ProbabilityConfiguration : giving the equation for the edges's sam
+        pling probability
+    """
+
+    source_node_probability: ProbabilityConfiguration
+    target_node_probability: ProbabilityConfiguration
+    edge_probability: ProbabilityConfiguration
+
+
+@dataclass
+class SpikyBallConfiguration:
+    """stores the configuration for our sampler
+
+    Parameters
+    ----------
+    sampler :
+        SamplerConfiguration : the configuration to use
+
+    layer_max_size :
+        int : the maximum numbers of members a layer may have
+    """
+
+    sampler: SamplerConfiguration
+    layer_max_size: int = 150
 
 
 def spikyball_strategy(
-    edges: pd.DataFrame, nodes: pd.DataFrame, known_nodes: list[str]
+    edges: pd.DataFrame,
+    nodes: pd.DataFrame,
+    known_nodes: list[str],
+    configuration: Union[SpikyBallConfiguration, dict],
 ) -> Tuple[list[str], pd.DataFrame, pd.DataFrame]:
     """
 
@@ -46,12 +113,21 @@ def spikyball_strategy(
         raise NotImplementedError()
 
     def sample_edges(
-        outward_edges: pd.DataFrame, nodes: pd.DataFrame
+        outward_edges: pd.DataFrame,
+        nodes: pd.DataFrame,
+        parameters: SamplerConfiguration,
     ) -> Tuple[list[str], pd.DataFrame]:
         """this function samples the outward edges (edges to nodes not yet seen)
 
         Description
         -----------
+
+        pk(e_ij ) = pk(j|i) = (f(i)^α  *g(i, j)^β * h(j)^γ) / s_k
+
+        and:
+
+        s_k = ∑_i∈L_k ∑_j∈ N(i) f(i)^α * g(i,j)^β * h(j)^γ
+
 
         This function passes
 
@@ -64,6 +140,9 @@ def spikyball_strategy(
         nodes :
             pd.DataFrame : metadata regarding the known nodes
 
+        parameters :
+            SamplerConfiguration : coefficients and weights
+
         Returns
         -------
 
@@ -72,10 +151,15 @@ def spikyball_strategy(
         pd.DataFrame : the sparse edge set to add to the sampled network
 
         pd.DataFrame : the dense edge set
+
         """
+
         raise NotImplementedError("spikyball_strategy is not yet implemented.")
 
+    if isinstance(configuration, dict):
+        configuration = fromdict(SpikyBallConfiguration, configuration)
+
     e_in, e_out = filter_edges(edges, known_nodes)
-    seeds, e_sampled = sample_edges(e_out, nodes)
+    seeds, e_sampled = sample_edges(e_out, nodes, configuration.sampler)
 
     return seeds, pd.concat([e_in, e_sampled]), e_out
