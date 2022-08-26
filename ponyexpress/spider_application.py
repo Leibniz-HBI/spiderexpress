@@ -18,6 +18,8 @@ Todo
 - implement the get_neighbor-methods!
 """
 
+# pylint: disable=W0613
+
 from functools import partial, singledispatchmethod
 from importlib.metadata import entry_points
 from pathlib import Path
@@ -134,10 +136,21 @@ class Spider:
         seeds = self.configuration.seeds.copy()
 
         for _ in range(self.configuration.max_iteration):
-            edges, nodes = self.connector(seeds)
-            seeds = self.strategy(edges, nodes)
+            # in order too sample our network we pass the following information into the sampler
+            known_nodes = (
+                self.get_known_nodes()
+            )  # all the node we know already at this point
+            nodes = self.get_node_info(seeds)  # infos on the new seeds
+            edges = self.get_neighbors(seeds)  # edges to the seeds neighbors
+            seeds = self.strategy(
+                edges, nodes, known_nodes
+            )  # finally we call the sampler
 
     # section: database/network interactions
+
+    def get_known_nodes(self) -> list[str]:
+        """returns the name of all known nodes"""
+        return []
 
     def get_node_info(self, node_names: list[str]) -> pd.DataFrame:
         """returns the selected nodes properties.
@@ -171,8 +184,8 @@ class Spider:
         return pd.concat(_ret_)
 
     @singledispatchmethod
-    def get_neighbors(self, for_node_name) -> list[str]:
-        """retrieve the neighbors for given node or nodes.
+    def get_neighbors(self, for_node_name) -> pd.DataFrame:
+        """retrieve the incident edges for given node or nodes.
 
         Parameters
         ----------
@@ -182,17 +195,17 @@ class Spider:
 
         Returns
         -------
-        list[str] : the handles of the neighboring nodes
+        pd.DataFrame : the table of the edges incident to the specified node or nodes.
         """
         raise NotImplementedError()
 
     @get_neighbors.register
-    def _(self, for_node_name: str) -> list[str]:
-        return [for_node_name]
+    def _(self, for_node_name: str) -> pd.DataFrame:
+        return pd.DataFrame()
 
     @get_neighbors.register
-    def _(self, for_node_names: list[str]) -> list[str]:
-        return for_node_names
+    def _(self, for_node_names: list[str]) -> pd.DataFrame:
+        return pd.DataFrame()
 
     # section: plugin loading
 
