@@ -8,9 +8,9 @@ Leibniz-Institute for Media Research, 2022
 """
 
 
-from dataclasses import dataclass
+from dataclasses import dataclass, fields
 from pathlib import Path
-from typing import Callable, Dict, Optional, Tuple, Union
+from typing import Callable, Dict, Optional, Tuple, Type, TypeVar, Union
 
 import pandas as pd
 import yaml
@@ -64,3 +64,38 @@ class ConfigurationItem:
 
     path: Path
     name: str
+
+
+T = TypeVar("T")
+
+
+def fromdict(cls: Type[T], dictionary: dict) -> T:
+    """convert a dictionary to a dataclass
+
+    Warning
+    -------
+
+    types and keys in the dataclass and the dictionary must match exactly.
+
+    Parameters
+    ----------
+    cls :
+        Type[T] : the dataclass to convert to
+
+    dictionary :
+        dict : the dictionary to convert
+
+    Returns
+    -------
+
+    T : the dataclass with values from the dictionary
+    """
+    fieldtypes = {f.name: f.type for f in fields(cls)}
+    return cls(
+        **{
+            f: fromdict(fieldtypes[f], dictionary[f])
+            if isinstance(dictionary[f], dict)
+            else dictionary[f]
+            for f in dictionary
+        }
+    )
