@@ -41,3 +41,6 @@ telegram = "ponyexpress.connectors.telegram:telegram_connector"
 
 [tool.poetry.plugins."ponyexpress.strategies"]
 spikyball = "ponyexpress.strategies.spikyball:spikyball_strategy"
+
+[tool.pytest.ini_options]
+addopts = "--cov-report html:tests/coverage --cov=ponyexpress --capture=sys"
