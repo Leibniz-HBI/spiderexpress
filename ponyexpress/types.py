@@ -10,13 +10,16 @@ Leibniz-Institute for Media Research, 2022
 
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Callable, Dict, Optional, Union
+from typing import Callable, Dict, Optional, Tuple, Union
 
 import pandas as pd
 import yaml
 
 Connector = Callable[[list[str]], tuple[pd.DataFrame, pd.DataFrame]]
-Strategy = Callable[[pd.DataFrame, pd.DataFrame], list[str]]
+Strategy = Callable[
+    [pd.DataFrame, pd.DataFrame, list[str]],
+    Tuple[list[str], pd.DataFrame, pd.DataFrame],
+]
 PlugInSpec = Union[str, Dict[str, Dict[str, Union[str, int]]]]
 
 
