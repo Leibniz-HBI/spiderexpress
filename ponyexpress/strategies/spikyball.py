@@ -12,9 +12,8 @@ import pandas as pd
 
 
 def spikyball_strategy(
-    edges: pd.DataFrame,
-    nodes: pd.DataFrame,
-) -> list[str]:
+    edges: pd.DataFrame, nodes: pd.DataFrame, known_nodes: list[str]
+) -> Tuple[list[str], pd.DataFrame, pd.DataFrame]:
     """
 
     See [this paper](https://arxiv.org/abs/2010.11786).
@@ -34,11 +33,8 @@ def spikyball_strategy(
 
     """
 
-    def get_neighbors(node_name: str, nodes: pd.DataFrame) -> list[str]:
-        raise NotImplementedError()
-
     def filter_edges(
-        edges: pd.DataFrame,
+        edges: pd.DataFrame, known_nodes: list[str]
     ) -> Tuple[pd.DataFrame, pd.DataFrame]:
         """
         When the raw data has been collected from the network,
@@ -49,4 +45,37 @@ def spikyball_strategy(
         """
         raise NotImplementedError()
 
-    raise NotImplementedError("spikyball_strategy is not yet implemented.")
+    def sample_edges(
+        outward_edges: pd.DataFrame, nodes: pd.DataFrame
+    ) -> Tuple[list[str], pd.DataFrame]:
+        """this function samples the outward edges (edges to nodes not yet seen)
+
+        Description
+        -----------
+
+        This function passes
+
+        Parameters
+        ----------
+
+        outward_edges :
+            pd.DataFrame : the edges pointing towards unseen nodes
+
+        nodes :
+            pd.DataFrame : metadata regarding the known nodes
+
+        Returns
+        -------
+
+        list[str] : the new seeds for the next iteration
+
+        pd.DataFrame : the sparse edge set to add to the sampled network
+
+        pd.DataFrame : the dense edge set
+        """
+        raise NotImplementedError("spikyball_strategy is not yet implemented.")
+
+    e_in, e_out = filter_edges(edges, known_nodes)
+    seeds, e_sampled = sample_edges(e_out, nodes)
+
+    return seeds, pd.concat([e_in, e_sampled]), e_out
