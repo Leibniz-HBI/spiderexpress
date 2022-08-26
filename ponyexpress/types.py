@@ -90,12 +90,17 @@ def fromdict(cls: Type[T], dictionary: dict) -> T:
 
     T : the dataclass with values from the dictionary
     """
-    fieldtypes = {f.name: f.type for f in fields(cls)}
+    fieldtypes: dict[str, type] = {f.name: f.type for f in fields(cls)}
     return cls(
         **{
-            f: fromdict(fieldtypes[f], dictionary[f])
-            if isinstance(dictionary[f], dict)
-            else dictionary[f]
-            for f in dictionary
+            key: fromdict(fieldtypes[key], value)
+            # we test whether the current value is a dict and whether it should be kept a dict.
+            # py discerns generic types, thus, dict == dict[unknown, unknown]
+            # but dict != dict[str, float].
+            # Thus, making our life hard and it necessary to test against to name of the type.
+            if isinstance(value, dict)
+            and not fieldtypes[key].__name__.startswith("dict")
+            else value
+            for key, value in dictionary.items()
         }
     )
