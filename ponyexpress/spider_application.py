@@ -23,7 +23,7 @@ Todo
 from functools import partial, singledispatchmethod
 from importlib.metadata import entry_points
 from pathlib import Path
-from sqlite3 import Connection
+from sqlite3 import Connection, connect
 from typing import Optional
 
 import pandas as pd
@@ -92,6 +92,7 @@ class Spider:
         if self.configuration:
             self.connector = self.get_connector(self.configuration.connector)
             self.strategy = self.get_strategy(self.configuration.strategy)
+            self._cache_ = connect(self.configuration.db_url)
             self.spider()
 
     # def restart(self):
@@ -204,7 +205,7 @@ class Spider:
         return pd.DataFrame()
 
     @get_neighbors.register
-    def _(self, for_node_names: list[str]) -> pd.DataFrame:
+    def _(self, for_node_names: list) -> pd.DataFrame:
         return pd.DataFrame()
 
     # section: plugin loading
@@ -265,13 +266,16 @@ class Spider:
             return nodes
         raise ValueError("Configuration or Connector are not present")
 
-    def _get_cached_node_data_(self, node_name: str) -> pd.DataFrame:
+    def _get_cached_node_data_(self, node_name: str) -> Optional[pd.DataFrame]:
         if self.configuration and self._cache_:
             table_name = self.configuration.node_table_name
-            return pd.read_sql_query(
-                f"SELECT * FROM {table_name} WHERE {table_name} = '{node_name}'",
-                self._cache_,
-            )
+
+            if self._db_ready_(table_name):
+                return pd.read_sql_query(
+                    f"SELECT * FROM {table_name} WHERE {table_name} = '{node_name}'",
+                    self._cache_,
+                )
+            return None
         raise ValueError("Configuration or DatabaseConnection are not present")
 
     @singledispatchmethod
@@ -287,4 +291,8 @@ class Spider:
     def _(self, spec: dict, group: str):
         for key, values in spec.items():
             entry_point = [_ for _ in entry_points()[group] if _.name == key]
-            return partial(entry_point[0].load(), **values)
+            log.debug(f"Using this configuration: {values}")
+            return partial(entry_point[0].load(), configuration=values)
+
+    def _db_ready_(self, table_name: str) -> bool:
+        return False
