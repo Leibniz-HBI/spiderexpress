@@ -138,14 +138,22 @@ class Spider:
 
         for _ in range(self.configuration.max_iteration):
             # in order too sample our network we pass the following information into the sampler
+            log.debug(f"Starting iteration {_} with seeds: {', '.join(seeds)}.")
             known_nodes = (
                 self.get_known_nodes()
             )  # all the node we know already at this point
             nodes = self.get_node_info(seeds)  # infos on the new seeds
             edges = self.get_neighbors(seeds)  # edges to the seeds neighbors
-            seeds = self.strategy(
+            seeds, edges_sparse, _ = self.strategy(
                 edges, nodes, known_nodes
             )  # finally we call the sampler
+
+            # persist the sampled_edges in the data base
+            edges_sparse.to_sql(
+                f"{self.configuration.edge_table_name}_sparse",
+                self._cache_,
+                if_exists="append",
+            )
 
     # section: database/network interactions
 
@@ -169,11 +177,12 @@ class Spider:
         """
         # map each node
         def _mapper_(node_name: str):
+            log.debug(f"Searching for {node_name}")
             # look for the node in the cache
             # if it is there
 
             cached_result = self._get_cached_node_data_(node_name)
-            if cached_result is not None:
+            if cached_result is not None and not cached_result.empty:
                 return cached_result
                 # return the table row to the mapper
             # else
@@ -202,11 +211,36 @@ class Spider:
 
     @get_neighbors.register
     def _(self, for_node_name: str) -> pd.DataFrame:
-        return pd.DataFrame()
+        if self.configuration:
+            table_name = f"{self.configuration.edge_table_name}_dense"
+            if self._db_ready_(table_name):
+                query_string = (
+                    f"SELECT * FROM {table_name} WHERE source = '{for_node_name}'"
+                )
+                log.debug(f"Requesting: {query_string}")
+
+                return pd.read_sql(query_string)
+            log.warning(f"No edges returned for {for_node_name}.")
+
+            return pd.DataFrame()
+        raise ValueError("Configuration is not loaded. Aborting")
 
     @get_neighbors.register
     def _(self, for_node_names: list) -> pd.DataFrame:
-        return pd.DataFrame()
+        if self.configuration:
+            table_name = f"{self.configuration.edge_table_name}_dense"
+            if self._db_ready_(table_name):
+                node_name_string = ", ".join([f"'{_}'" for _ in for_node_names])
+                query_string = (
+                    f"SELECT * FROM {table_name} WHERE source IN ({node_name_string})"
+                )
+                log.debug(f"Requesting: {query_string}")
+                return pd.read_sql(query_string, self._cache_)
+            log.warning(
+                f"No edges returned for {','.join(for_node_names)} as the table does not exist."
+            )
+            return pd.DataFrame(columns=["source", "target", "weight"])
+        raise ValueError("Configuration is not loaded. Aborting")
 
     # section: plugin loading
 
@@ -251,18 +285,26 @@ class Spider:
         if self.configuration and self.connector:
             edges, nodes = self.connector([node])
 
-            edges.to_sql(
-                self.configuration.edge_table_name,
-                self._cache_,
-                if_exists="append",
-                index=False,
-            )
-            nodes.to_sql(
-                self.configuration.node_table_name,
-                self._cache_,
-                if_exists="append",
-                index=False,
-            )
+            log.debug(f"edges:\n{edges}\n\nnodes:{nodes}\n")
+            if len(edges) > 0:
+                log.debug(
+                    f"Persisting {self.configuration.edge_table_name}_dense:\\{edges}"
+                )
+                edges.to_sql(
+                    name=f"{self.configuration.edge_table_name}_dense",
+                    con=self._cache_,
+                    if_exists="append",
+                    index=False,
+                    method="multi",
+                )
+            if len(nodes) > 0:
+                nodes.to_sql(
+                    name=self.configuration.node_table_name,
+                    con=self._cache_,
+                    if_exists="append",
+                    index=False,
+                    method="multi",
+                )
             return nodes
         raise ValueError("Configuration or Connector are not present")
 
@@ -272,7 +314,7 @@ class Spider:
 
             if self._db_ready_(table_name):
                 return pd.read_sql_query(
-                    f"SELECT * FROM {table_name} WHERE {table_name} = '{node_name}'",
+                    f"SELECT * FROM {table_name} WHERE name = '{node_name}'",
                     self._cache_,
                 )
             return None
@@ -295,4 +337,15 @@ class Spider:
             return partial(entry_point[0].load(), configuration=values)
 
     def _db_ready_(self, table_name: str) -> bool:
-        return False
+        if self._cache_:
+            cursor = self._cache_.cursor()
+            cursor.execute(
+                f"SELECT count(name) FROM sqlite_master WHERE type='table' AND name='{table_name}'"
+            )
+            return cursor.fetchone()[0] == 1
+        raise ValueError("Database is not ready.")
+
+    def __del__(self):
+        if self._cache_:
+            self._cache_.commit()
+            self._cache_.close()
