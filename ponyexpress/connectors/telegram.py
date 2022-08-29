@@ -6,11 +6,11 @@ Leibniz-Institute for Media Research, 2022
 ToDo:
     - should raise an exception if no data is present, thus, the calling program
       can detect an fault/non-existing data.
+    - must convert telegram's number-strings to py numerics, e.g. '7.5K' should be 7500.
 """
 
-import re
 from functools import reduce
-from typing import Tuple
+from typing import Optional, Tuple
 
 import pandas as pd
 import requests
@@ -30,8 +30,8 @@ message_paths = {
     #       "reply_to_text" : ".//a[@class='tgme_widget_message_reply']//div[@class='tgme_widget_message_text']/descendant-or-self::*/text()",
     #       "reply_to_link" : ".//a[@class='tgme_widget_message_reply']/@href",
     "image_url": "./a[contains(@class, 'tgme_widget_message_photo_wrap')]/@style",
-    #       "forwarded_message_url" : ".//a[@class='tgme_widget_message_forwarded_from_name']/@href",
-    #       "forwarded_message_user" : ".//a[@class='tgme_widget_message_forwarded_from_name']/descendant-or-self::*/text()",
+    "forwarded_message_url": ".//a[@class='tgme_widget_message_forwarded_from_name']/@href",
+    "forwarded_message_user": ".//a[@class='tgme_widget_message_forwarded_from_name']/descendant-or-self::*/text()",
     #       "poll_question" : ".//div[@class='tgme_widget_message_poll_question']/descendant-or-self::*/text()",
     #       "poll_options_text" : ".//div[@class='tgme_widget_message_poll_option_value']/descendant-or-self::*/text()",
     #       "poll_options_percent" : ".//div[@class='tgme_widget_message_poll_option_percent']/descendant-or-self::*/text()",
@@ -42,8 +42,8 @@ message_paths = {
 
 user_paths = {
     # pylint: disable=C0301
-    "handle": '//div[@class="tgme_channel_info_header_username"]/a/text()',
-    "name": '//div[@class="tgme_channel_info_header_title"]/descendant-or-self::*/text()',
+    "name": '//div[@class="tgme_channel_info_header_username"]/a/text()',
+    "fullname": '//div[@class="tgme_channel_info_header_title"]/descendant-or-self::*/text()',
     "url": '//div[@class="tgme_channel_info_header_username"]/a/@href',
     "description": '//div[@class="tgme_channel_info_description"]/descendant-or-self::*/text()',
     "subscriber_count": '//div[@class="tgme_channel_info_counter"]/span[@class="counter_type" and text() = "subscribers"]/preceding-sibling::span/text()',
@@ -73,15 +73,17 @@ def get_messages(page) -> pd.DataFrame:
         for name, xpath in xpaths.items():
             # first post-processing steps
 
-            log.debug(f"Parsing {name}.")
             parsed = tree.xpath(xpath)
+            # log.debug(f"Parsing {name} with value: {parsed}.")
 
             if name == "link":
                 data = ",".join(parsed)
             else:
                 data = "".join(parsed)
-                if name == "image_url":
-                    data = re.findall(r"(?<=url\(').+(?=')", data)
+                if data.isdigit():
+                    data = int(data)
+                # if name == "image_url":
+                #     data = re.findall(r"(?<=url\(').+(?=')", data)
             if data == "":
                 data = None
             yield pd.Series(data=data, name=name, dtype="object")
@@ -124,7 +126,7 @@ def get_user(page) -> pd.DataFrame:
 
     data = pd.concat(extract_multiple(page, user_paths), axis=1)
     # post process entries
-    data["handle"] = data.handle.str.replace("@", "")
+    data["name"] = data["name"].str.replace("@", "")
     return data
 
 
@@ -142,7 +144,7 @@ def telegram_connector(node_names: list[str]) -> Tuple[pd.DataFrame, pd.DataFram
         Tuple[pd.DataFrame, pd.DataFrame] : edges, nodes
     """
 
-    def get_node(node_name: str) -> Tuple[pd.DataFrame, pd.DataFrame]:
+    def get_node(node_name: str) -> Optional[Tuple[pd.DataFrame, pd.DataFrame]]:
         visit_url = f"https://t.me/s/{node_name}"
         resp = requests.get(visit_url)
         log.debug(f"Visited node {node_name} with status: {resp.status_code}")
@@ -151,8 +153,31 @@ def telegram_connector(node_names: list[str]) -> Tuple[pd.DataFrame, pd.DataFram
             log.warning(f"{visit_url} throw an error")
         if resp.status_code == 200:
             html_source = html.fromstring(resp.content)
-            edges = get_messages(html_source)
+            messages = get_messages(html_source)
+
             nodes = get_user(html_source)
+            log.debug(f"Parsed userdata for {node_name}:\n{nodes}\n")
+            # except Exception:
+            #     log.warning(f"Parsing failed for {node_name}")
+            #     return None
+            edges = messages.loc[~messages["forwarded_message_url"].isnull(), :]
+            edges["source"] = edges["handle"]
+            edges["target"] = edges["forwarded_message_url"].str.extract(
+                r"([\w_]+)(?=\/\d+)"
+            )
+
+            print(
+                pd.concat(
+                    [
+                        edges["forwarded_message_url"],
+                        edges["forwarded_message_url"].str.extract(r"(\w+)(?=\/\d+)$"),
+                    ],
+                    axis=1,
+                )
+            )
+            log.debug(f"Parsed message for {node_name}:\n{edges}\n")
+            log.debug(f"Retrieved {len(edges)} edges for {node_name}")
+
             return edges, nodes
 
         log.warning(f"parsing failed for {node_name}")
@@ -165,4 +190,10 @@ def telegram_connector(node_names: list[str]) -> Tuple[pd.DataFrame, pd.DataFram
         return pd.concat([carry[0], value[0]]), pd.concat([carry[1], value[1]])
 
     _ret_ = [get_node(_) for _ in node_names]
-    return reduce(reduce_returns, [_ for _ in _ret_ if _ is not None])
+    _ret_ = [_ for _ in _ret_ if _ is not None]
+
+    log.debug(f"TG Connector found: {_ret_}")
+
+    if len(_ret_) > 0:
+        return reduce(reduce_returns, _ret_)
+    return pd.DataFrame(), pd.DataFrame()
