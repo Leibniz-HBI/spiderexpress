@@ -1,4 +1,4 @@
-"""Scraping Telegram Connetor for ponyexpress
+"""Scraping Telegram Connector for ponyexpress
 
 Philipp Kessling
 Leibniz-Institute for Media Research, 2022
