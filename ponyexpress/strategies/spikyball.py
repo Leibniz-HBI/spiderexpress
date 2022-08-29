@@ -7,12 +7,13 @@ Leibniz-Institute for Media Research, 2022
 # pylint: disable=W
 
 from dataclasses import dataclass
+from functools import reduce
 from typing import Tuple, Union
 
 import pandas as pd
 from loguru import logger as log
 
-from ponyexpress.types import fromdict
+from ..types import fromdict
 
 
 @dataclass
@@ -75,6 +76,195 @@ class SpikyBallConfiguration:
     layer_max_size: int = 150
 
 
+def calc_norm(source: pd.Series, edge: pd.Series, target: pd.Series) -> float:
+    """calculates the normalization contant for skipyball sampling
+
+    Parameters
+    ----------
+
+    source :
+        pd.Series : weights for the source nodes
+
+    edge :
+        pd.Series : weights for the edges
+
+    target :
+        pd.Series : weights for the target nodes
+
+    Returns
+    -------
+
+    float : the normalization constant
+    """
+    return sum(source * edge * target)
+
+
+def calc_prob(table: pd.DataFrame, params: ProbabilityConfiguration) -> pd.Series:
+    """calculates the probability for row to be sampled with given configuration.
+
+    This implementation follows the form of: $$p(n) = (\prod^n_{k=1} t_n)^j$$.
+
+    Parameters
+    ----------
+
+    table :
+        pd.DataFrame : table with attributes
+
+    params :
+        ProbabilityConfiguration : information which columns to consider and the exponent
+
+    Returns
+    -------
+
+    pd.Series : of len(table) with the probabilites for each row
+
+    Raises
+    ------
+
+    KeyError : if a column specified in ``params.weights`` is not present in ``table``.
+
+    Example
+    -------
+
+    If the exponent is 1 and we pass in a single column with weight 1, the original values are kept.
+
+    >>> calc_prob(pd.DataFrame({"a": [1,2,3,4,5,6]}), ProbabilityConfiguration(1, {"a": 1}))
+    0    1.0
+    1    2.0
+    2    3.0
+    3    4.0
+    4    5.0
+    5    6.0
+    Name: a, dtype: float64
+
+    If we increase the weight, the values are multiplied with that value:
+
+    >>> calc_prob(pd.DataFrame({"a": [1,2,3,4,5,6]}), ProbabilityConfiguration(1, {"a": 2}))
+    0     2.0
+    1     4.0
+    2     6.0
+    3     8.0
+    4    10.0
+    5    12.0
+    Name: a, dtype: float64
+
+    Adding other columns multiples the values in one row:
+
+    >>> calc_prob(
+    >>>     pd.DataFrame({"a": [1,2,3,4,5,6], "b": [6,5,4,3,2,1]}),
+    >>>     ProbabilityConfiguration(1, {"a": 1, "b": 1})
+    >>> )
+    0     6.0
+    1    10.0
+    2    12.0
+    3    12.0
+    4    10.0
+    5     6.0
+    dtype: float64
+    """
+    if params.weights:
+        weights = [
+            table[key].astype(float) * weight for key, weight in params.weights.items()
+        ]
+        log.debug(f"Using this weight matrix: {weights}")
+        return reduce(lambda x, y: x * y, weights) ** params.coefficient
+    return pd.Series([1 for _ in range(len(table))])
+
+
+def sample_edges(
+    outward_edges: pd.DataFrame,
+    nodes: pd.DataFrame,
+    edges: pd.DataFrame,
+    parameters: SamplerConfiguration,
+    max_layer_size: int,
+) -> Tuple[list[str], pd.DataFrame]:
+    """this function samples the outward edges (edges to nodes not yet seen)
+
+    Description
+    -----------
+
+    $$p_k(e_{ij}) = p_k(j|i) = (f(i)^α  *g(i, j)^β * h(j)^γ)/s_k$$
+
+    and:
+
+    $$s_k = ∑_i∈L_k ∑_j∈N(i) f(i)^α * g(i,j)^β * h(j)^γ$$
+
+    Parameters
+    ----------
+
+    outward_edges :
+        pd.DataFrame : the edges pointing towards unseen nodes
+
+    nodes :
+        pd.DataFrame : metadata regarding the known nodes
+
+    parameters :
+        SamplerConfiguration : coefficients and weights
+
+    Returns
+    -------
+
+    list[str] : the new seeds for the next iteration
+
+    pd.DataFrame : the sparse edge set to add to the sampled network
+
+    pd.DataFrame : the dense edge set
+
+    """
+    source_nodes = edges.merge(nodes, left_on="source", right_on="name")
+    target_nodes = edges.merge(nodes, left_on="target", right_on="name")
+
+    source_prob = calc_prob(source_nodes, parameters.source_node_probability)
+    edge_prob = calc_prob(outward_edges, parameters.edge_probability)
+    target_prob = calc_prob(target_nodes, parameters.target_node_probability)
+
+    if len(target_prob) != len(source_prob):
+        target_prob = pd.Series([1 for _ in range(len(source_prob))])
+
+    s_k = calc_norm(source_prob, edge_prob, target_prob)
+
+    log.debug(f"f: {source_prob},\ng: {edge_prob},\nh: {target_prob}\n, s_k:{s_k}")
+
+    outward_edges["probability"] = (source_prob * edge_prob * target_prob) / s_k
+
+    # log.debug(f"Sampling these data points:\n{outward_edges}\n")
+
+    sample: pd.DataFrame = outward_edges.sample(
+        max_layer_size if max_layer_size <= len(outward_edges) else len(outward_edges),
+        replace=False,
+        weights="probability",
+    )
+    sample.drop(labels="probability", axis=1, inplace=True)
+
+    return sample["target"].unique().tolist(), sample
+
+
+def filter_edges(
+    edges: pd.DataFrame, known_nodes: list[str]
+) -> Tuple[pd.DataFrame, pd.DataFrame]:
+    """
+    When the raw data has been collected from the network,
+    it is further processed by three different functions.
+    The edges are sorted by FilterEdges between edges connecting
+    the source nodes to nodes already collected in previous layers E^(in)_k
+    and the edges pointing to new nodes E^(out)_k .
+    """
+    edges["known"] = [
+        "in" if node_name in known_nodes else "out" for node_name in edges["target"]
+    ]
+    groups = {
+        _: x.drop("known", axis=1, inplace=False) for _, x in edges.groupby("known")
+    }
+
+    print(groups)
+    return tuple(
+        [
+            groups["in"] if "in" in groups else pd.DataFrame(),
+            groups["out"] if "out" in groups else pd.DataFrame(),
+        ]
+    )
+
+
 def spikyball_strategy(
     edges: pd.DataFrame,
     nodes: pd.DataFrame,
@@ -100,66 +290,16 @@ def spikyball_strategy(
 
     """
 
-    def filter_edges(
-        edges: pd.DataFrame, known_nodes: list[str]
-    ) -> Tuple[pd.DataFrame, pd.DataFrame]:
-        """
-        When the raw data has been collected from the network,
-        it is further processed by three different functions.
-        The edges are sorted by FilterEdges between edges connecting
-        the source nodes to nodes already collected in previous layers E^(in)_k
-        and the edges pointing to new nodes E^(out)_k .
-        """
-        raise NotImplementedError()
-
-    def sample_edges(
-        outward_edges: pd.DataFrame,
-        nodes: pd.DataFrame,
-        parameters: SamplerConfiguration,
-    ) -> Tuple[list[str], pd.DataFrame]:
-        """this function samples the outward edges (edges to nodes not yet seen)
-
-        Description
-        -----------
-
-        pk(e_ij ) = pk(j|i) = (f(i)^α  *g(i, j)^β * h(j)^γ) / s_k
-
-        and:
-
-        s_k = ∑_i∈L_k ∑_j∈ N(i) f(i)^α * g(i,j)^β * h(j)^γ
-
-
-        This function passes
-
-        Parameters
-        ----------
-
-        outward_edges :
-            pd.DataFrame : the edges pointing towards unseen nodes
-
-        nodes :
-            pd.DataFrame : metadata regarding the known nodes
-
-        parameters :
-            SamplerConfiguration : coefficients and weights
-
-        Returns
-        -------
-
-        list[str] : the new seeds for the next iteration
-
-        pd.DataFrame : the sparse edge set to add to the sampled network
-
-        pd.DataFrame : the dense edge set
-
-        """
-
-        raise NotImplementedError("spikyball_strategy is not yet implemented.")
-
     if isinstance(configuration, dict):
         configuration = fromdict(SpikyBallConfiguration, configuration)
 
     e_in, e_out = filter_edges(edges, known_nodes)
-    seeds, e_sampled = sample_edges(e_out, nodes, configuration.sampler)
+    seeds, e_sampled = sample_edges(
+        e_out,
+        nodes,
+        edges,
+        configuration.sampler,
+        configuration.layer_max_size,
+    )
 
     return seeds, pd.concat([e_in, e_sampled]), e_out
