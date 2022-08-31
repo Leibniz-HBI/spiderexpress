@@ -149,3 +149,8 @@ __pycache__/
 dist/
 notebooks/
 
+# VS Code file
+.vscode/
+
+# ponyexpress files
+*.pe.yml
