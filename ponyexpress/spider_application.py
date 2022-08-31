@@ -65,6 +65,7 @@ class Spider:
         self.connector: Optional[Connector] = None
         self.strategy: Optional[Strategy] = None
         self._cache_: Optional[Connection] = None
+        self._layer_counter_ = 0
 
     @classmethod
     def available_configurations(cls) -> list[ConfigurationItem]:
@@ -139,15 +140,14 @@ class Spider:
         for _ in range(self.configuration.max_iteration):
             # in order too sample our network we pass the following information into the sampler
             log.debug(f"Starting iteration {_} with seeds: {', '.join(seeds)}.")
-            known_nodes = (
-                self.get_known_nodes()
-            )  # all the node we know already at this point
+            known_nodes = self.get_known_nodes()
+            # all the node we know already at this point
             nodes = self.get_node_info(seeds)  # infos on the new seeds
             edges = self.get_neighbors(seeds)  # edges to the seeds neighbors
             seeds, edges_sparse, _ = self.strategy(
                 edges, nodes, known_nodes
             )  # finally we call the sampler
-
+            edges_sparse.loc[:, "layer"] = self._layer_counter_
             # persist the sampled_edges in the data base
             edges_sparse.to_sql(
                 f"{self.configuration.edge_table_name}_sparse",
@@ -155,11 +155,21 @@ class Spider:
                 if_exists="append",
             )
 
+            self._layer_counter_ += 1
+
     # section: database/network interactions
 
     def get_known_nodes(self) -> list[str]:
         """returns the name of all known nodes"""
-        return []
+        if self.configuration and self._cache_:
+            try:
+                return pd.read_sql(
+                    f"SELECT DISTINCT name FROM {self.configuration.node_table_name}",
+                    self._cache_,
+                )["name"].tolist()
+            except pd.io.sql.DatabaseError:
+                return []
+        raise ValueError("configuration and data base are not set up")
 
     def get_node_info(self, node_names: list[str]) -> pd.DataFrame:
         """returns the selected nodes properties.
@@ -284,12 +294,9 @@ class Spider:
     def _dispatch_connector_for_node_(self, node: str) -> pd.DataFrame:
         if self.configuration and self.connector:
             edges, nodes = self.connector([node])
-
             log.debug(f"edges:\n{edges}\n\nnodes:{nodes}\n")
             if len(edges) > 0:
-                log.debug(
-                    f"Persisting {self.configuration.edge_table_name}_dense:\\{edges}"
-                )
+                log.info(f"Persisting {len(edges)} for layer #{self._layer_counter_}")
                 edges.to_sql(
                     name=f"{self.configuration.edge_table_name}_dense",
                     con=self._cache_,
@@ -298,6 +305,7 @@ class Spider:
                     method="multi",
                 )
             if len(nodes) > 0:
+                nodes.loc[:, "layer"] = self._layer_counter_
                 nodes.to_sql(
                     name=self.configuration.node_table_name,
                     con=self._cache_,
