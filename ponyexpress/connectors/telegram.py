@@ -1,11 +1,8 @@
-"""Scraping Telegram Connetor for ponyexpress
-
-Philipp Kessling
-Leibniz-Institute for Media Research, 2022
+"""Scraping Telegram Connector for ponyexpress
 
 ToDo:
-    - should raise an exception if no data is present, thus, the calling program
-      can detect an fault/non-existing data.
+    - should return a one-rowed DataFrame with just the name if no data is
+      present, thus, the calling program can detect an fault/non-existing data.
 """
 
 import re
@@ -57,16 +54,13 @@ user_paths = {
 def get_messages(page) -> pd.DataFrame:
     """get Telegram messages from a HTML document
 
-    Parameters
-    ----------
-    page:
-        lxml.tree : the parsed HTML document
+    Args:
+      page: lxml.tree : the parsed HTML document
 
+    Returns:
 
-    Returns
-    -------
-    pd.DataFrame : the parsed messages, where the columns are based on the
-    keys of the messages_paths-dictionary.
+    the parsed messages, where the columns are based on the
+    keys of the messages_paths-dictionary as a ``pd.DataFrame``.
     """
 
     def extract_multiple2(tree, xpaths):
@@ -103,15 +97,12 @@ def get_messages(page) -> pd.DataFrame:
 def get_user(page) -> pd.DataFrame:
     """get Telegram user data from a HTML document
 
-    Parameters
-    ----------
-    page:
-        lxml.tree : the parsed HTML document
+    Args:
+      page: lxml.tree : the parsed HTML document
 
+    Returns:
 
-    Returns
-    -------
-    pd.DataFrame : the parsed messages, where the columns are based on the
+    The parsed messages in a ``pd.DataFrame``, where the columns are based on the
     keys of the user_paths-dictionary.
     """
 
@@ -133,13 +124,13 @@ def telegram_connector(node_names: list[str]) -> Tuple[pd.DataFrame, pd.DataFram
 
     That is, if there is a public channel present for the specified handles.
 
-    Parameters
-    ----------
-    node_names :
-        list[str] : list of handles to scrape
+    Args:
+      node_names: list[str]:  list of handles to scrape
 
-    Returns :
-        Tuple[pd.DataFrame, pd.DataFrame] : edges, nodes
+    Returns:
+
+     edges, nodes in a Tuple[pd.DataFrame, pd.DataFrame].
+
     """
 
     def get_node(node_name: str) -> Tuple[pd.DataFrame, pd.DataFrame]:
