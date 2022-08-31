@@ -96,7 +96,7 @@ def calc_norm(source: pd.Series, edge: pd.Series, target: pd.Series) -> float:
 
     float : the normalization constant
     """
-    return sum(source * edge * target)
+    return sum(source.fillna(1) * edge.fillna(1) * target.fillna(1))
 
 
 def calc_prob(table: pd.DataFrame, params: ProbabilityConfiguration) -> pd.Series:
@@ -174,7 +174,6 @@ def calc_prob(table: pd.DataFrame, params: ProbabilityConfiguration) -> pd.Serie
 def sample_edges(
     outward_edges: pd.DataFrame,
     nodes: pd.DataFrame,
-    edges: pd.DataFrame,
     parameters: SamplerConfiguration,
     max_layer_size: int,
 ) -> Tuple[list[str], pd.DataFrame]:
@@ -211,32 +210,51 @@ def sample_edges(
     pd.DataFrame : the dense edge set
 
     """
-    source_nodes = edges.merge(nodes, left_on="source", right_on="name")
-    target_nodes = edges.merge(nodes, left_on="target", right_on="name")
+    source_nodes = (
+        outward_edges.reset_index()
+        .merge(nodes, left_on="source", right_on="name", validate="m:1")
+        .set_index("index")
+    )
+    target_nodes = (
+        outward_edges.reset_index()
+        .merge(nodes, left_on="target", right_on="name", validate="m:1")
+        .set_index("index")
+    )
 
     source_prob = calc_prob(source_nodes, parameters.source_node_probability)
     edge_prob = calc_prob(outward_edges, parameters.edge_probability)
     target_prob = calc_prob(target_nodes, parameters.target_node_probability)
 
     if len(target_prob) != len(source_prob):
-        target_prob = pd.Series([1 for _ in range(len(source_prob))])
+        log.warning("Length of source and target table are not the same")
+        target_prob = pd.Series(
+            [1 for _ in range(len(source_prob))], index=source_prob.index
+        )
 
     s_k = calc_norm(source_prob, edge_prob, target_prob)
 
-    log.debug(f"f: {source_prob},\ng: {edge_prob},\nh: {target_prob}\n, s_k:{s_k}")
+    log.debug(f"f:\n{source_prob},\ng:\n{edge_prob},\nh:\n{target_prob}\n s_k:{s_k}\n")
 
-    outward_edges["probability"] = (source_prob * edge_prob * target_prob) / s_k
+    outward_edges.loc[:, "probability"] = (source_prob * edge_prob * target_prob) / s_k
 
-    # log.debug(f"Sampling these data points:\n{outward_edges}\n")
+    outward_edges = outward_edges.loc[outward_edges.probability > 0, :]
 
-    sample: pd.DataFrame = outward_edges.sample(
-        max_layer_size if max_layer_size <= len(outward_edges) else len(outward_edges),
-        replace=False,
-        weights="probability",
-    )
-    sample.drop(labels="probability", axis=1, inplace=True)
+    log.debug(f"Sampling these data points:\n{outward_edges}\n")
 
-    return sample["target"].unique().tolist(), sample
+    if (
+        len(outward_edges) <= max_layer_size
+    ):  # if we have fewer edges than max, return everything
+        seeds = outward_edges["target"].unique().tolist()
+        sample = outward_edges.drop(labels="probability", axis=1)
+    else:
+        sample: pd.DataFrame = outward_edges.sample(
+            max_layer_size,
+            replace=False,
+            weights="probability",
+        )
+        sample.drop(labels="probability", axis=1, inplace=True)
+        seeds = sample["target"].unique().tolist()
+    return [_ for _ in seeds if _ is not None], sample
 
 
 def filter_edges(
@@ -249,11 +267,10 @@ def filter_edges(
     the source nodes to nodes already collected in previous layers E^(in)_k
     and the edges pointing to new nodes E^(out)_k .
     """
-    edges["known"] = [
-        "in" if node_name in known_nodes else "out" for node_name in edges["target"]
-    ]
+    mask = edges.target.isin(known_nodes)
     groups = {
-        _: x.drop("known", axis=1, inplace=False) for _, x in edges.groupby("known")
+        "in": edges.loc[mask, :],
+        "out": edges.loc[~edges.target.isin(known_nodes), :],
     }
 
     print(groups)
@@ -297,7 +314,6 @@ def spikyball_strategy(
     seeds, e_sampled = sample_edges(
         e_out,
         nodes,
-        edges,
         configuration.sampler,
         configuration.layer_max_size,
     )
