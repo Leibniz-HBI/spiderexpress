@@ -54,6 +54,15 @@ user_paths = {
 }
 
 
+def parse_tg_number_string(num: str) -> float:
+    """parses the telegram number format"""
+    if len(num) > 0:
+        if num.isdigit():
+            return float(num)
+        return float(num.replace("K", "E+03").replace("M", "E+06"))
+    return 0.0
+
+
 def get_messages(page) -> pd.DataFrame:
     """get Telegram messages from a HTML document
 
@@ -80,23 +89,31 @@ def get_messages(page) -> pd.DataFrame:
                 data = ",".join(parsed)
             else:
                 data = "".join(parsed)
-                if data.isdigit():
-                    data = int(data)
+                if name in ["views"]:
+                    data = parse_tg_number_string(data)
                 # if name == "image_url":
                 #     data = re.findall(r"(?<=url\(').+(?=')", data)
             if data == "":
                 data = None
-            yield pd.Series(data=data, name=name, dtype="object")
+            yield pd.Series(
+                data=data, name=name, dtype="object" if isinstance(data, str) else float
+            )
 
     base_xpath = "//div[@class='tgme_widget_message_bubble']"
 
     messages_html = page.xpath(base_xpath)
-
-    data = pd.concat(
-        [pd.concat(extract_multiple2(_, message_paths), axis=1) for _ in messages_html],
-        axis=0,
-        ignore_index=True,
-    )
+    try:
+        data = pd.concat(
+            [
+                pd.concat(extract_multiple2(_, message_paths), axis=1)
+                for _ in messages_html
+            ],
+            axis=0,
+            ignore_index=True,
+        )
+    except ValueError:
+        # If this code is executed, we could not obtain data from the TG-page
+        return pd.DataFrame()
     data[["handle", "post_number"]] = data.post_id.str.split("/", n=1, expand=True)
 
     return data
@@ -120,13 +137,23 @@ def get_user(page) -> pd.DataFrame:
     def extract_multiple(tree, xpaths):
         for name, xpath in xpaths.items():
             data = "".join(tree.xpath(xpath))
+            if "count" in name:
+                data = parse_tg_number_string(data)
             if data == "":
                 data = None
-            yield pd.Series(data=data, name=name, dtype="object")
+            yield pd.Series(
+                data=data, name=name, dtype="object" if isinstance(data, str) else float
+            )
 
-    data = pd.concat(extract_multiple(page, user_paths), axis=1)
+    try:
+        data = pd.concat(extract_multiple(page, user_paths), axis=1)
+        data["name"] = data["name"].str.replace("@", "")
+    except ValueError:
+        # If this code is executed, we could not obtain data from the TG-page
+        return pd.DataFrame()
+    except AttributeError:
+        return pd.DataFrame()
     # post process entries
-    data["name"] = data["name"].str.replace("@", "")
     return data
 
 
@@ -160,25 +187,18 @@ def telegram_connector(node_names: list[str]) -> Tuple[pd.DataFrame, pd.DataFram
             # except Exception:
             #     log.warning(f"Parsing failed for {node_name}")
             #     return None
-            edges = messages.loc[~messages["forwarded_message_url"].isnull(), :]
-            edges["source"] = edges["handle"]
-            edges["target"] = edges["forwarded_message_url"].str.extract(
-                r"([\w_]+)(?=\/\d+)"
-            )
+            if len(messages) > 0:
+                edges = messages.loc[~messages["forwarded_message_url"].isnull(), :]
+                if len(edges) > 0:
+                    edges["source"] = edges["handle"]
+                    edges["target"] = edges["forwarded_message_url"].str.extract(
+                        r"([\w_]+)(?=\/\d+)"
+                    )
 
-            print(
-                pd.concat(
-                    [
-                        edges["forwarded_message_url"],
-                        edges["forwarded_message_url"].str.extract(r"(\w+)(?=\/\d+)$"),
-                    ],
-                    axis=1,
-                )
-            )
-            log.debug(f"Parsed message for {node_name}:\n{edges}\n")
-            log.debug(f"Retrieved {len(edges)} edges for {node_name}")
+                log.debug(f"Parsed message for {node_name}:\n{edges}\n")
+                log.debug(f"Retrieved {len(edges)} edges for {node_name}")
 
-            return edges, nodes
+                return edges, nodes
 
         log.warning(f"parsing failed for {node_name}")
         return pd.DataFrame(), pd.DataFrame()
