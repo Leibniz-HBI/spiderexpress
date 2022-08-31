@@ -102,7 +102,7 @@ def calc_norm(source: pd.Series, edge: pd.Series, target: pd.Series) -> float:
 def calc_prob(table: pd.DataFrame, params: ProbabilityConfiguration) -> pd.Series:
     """calculates the probability for row to be sampled with given configuration.
 
-    This implementation follows the form of: $$p(n) = (\prod^n_{k=1} t_n)^j$$.
+    This implementation follows the form of: $$p(n) = (\\prod^n_{k=1} t_n)^j$$.
 
     Parameters
     ----------
@@ -168,7 +168,7 @@ def calc_prob(table: pd.DataFrame, params: ProbabilityConfiguration) -> pd.Serie
         ]
         log.debug(f"Using this weight matrix: {weights}")
         return reduce(lambda x, y: x * y, weights) ** params.coefficient
-    return pd.Series([1 for _ in range(len(table))])
+    return pd.Series([1 for _ in range(len(table))], dtype=float)
 
 
 def sample_edges(
@@ -182,7 +182,7 @@ def sample_edges(
     Description
     -----------
 
-    $$p_k(e_{ij}) = p_k(j|i) = (f(i)^α  *g(i, j)^β * h(j)^γ)/s_k$$
+    $$p_k(e_{ij}) = p_k(j|i) = \\frac{f(i)^α  *g(i, j)^β * h(j)^γ}{s_k} $$
 
     and:
 
@@ -263,9 +263,23 @@ def filter_edges(
     """
     When the raw data has been collected from the network,
     it is further processed by three different functions.
-    The edges are sorted by FilterEdges between edges connecting
-    the source nodes to nodes already collected in previous layers E^(in)_k
-    and the edges pointing to new nodes E^(out)_k .
+    The edges are split by ``FilterEdges`` between edges connecting
+    the source nodes to nodes already collected in previous layers \\(E^{(in)}_k\\)
+    and the edges pointing to new nodes \\(E^{(out)}_k\\).
+
+    Parameters
+    ----------
+
+    edges : pd.DataFrame
+        the edges to filter
+
+    known_nodes : list[str]
+        the nodes to split the edge table on
+
+    Returns
+    -------
+
+    Tuple[pd.DataFrame, pd.DataFrame] : edges to known nodes and edges to unknown nodes
     """
     mask = edges.target.isin(known_nodes)
     groups = {
@@ -273,12 +287,9 @@ def filter_edges(
         "out": edges.loc[~edges.target.isin(known_nodes), :],
     }
 
-    print(groups)
-    return tuple(
-        [
-            groups["in"] if "in" in groups else pd.DataFrame(),
-            groups["out"] if "out" in groups else pd.DataFrame(),
-        ]
+    return (
+        groups["in"] if "in" in groups else pd.DataFrame(),
+        groups["out"] if "out" in groups else pd.DataFrame(),
     )
 
 
