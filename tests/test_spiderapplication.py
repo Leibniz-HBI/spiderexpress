@@ -1,36 +1,46 @@
-from pytest import fixture
+"""Test suite for ponyexpress.Spider
 
-# This is the main application, it should load the config, dispatch jobs and keep
-# track of its state, handle database connections and manage set up and tear down.
-# It is loaded by click has soon has the application starts and the configuration
-# is loaded automatically by the initializer.
+This is the main application, it should load the config, dispatch jobs and keep
+track of its state, handle database connections and manage set up and tear down.
+It is loaded by click has soon has the application starts and the configuration
+is loaded automatically by the initializer.
+"""
+from pytest import skip
 
-def test_initializer():
+
+def test_config_discover():
     """
-    The initializer should search all candidate configs so they can be shown in
+    The config_discover should search all candidate configs so they can be shown in
     auto-completion and loaded when selected.
     """
-    pass
+    skip()
+
 
 def test_load_config():
-    pass
+    """should load the config"""
+    skip()
+
 
 def test_spider():
-    pass
+    """test Spider creation"""
+    skip()
+
 
 def test_get_node():
     """
     Spider should be able to retrieve node information either from the connected
     database or from a web service.
     """
-    pass
+    skip()
+
 
 def test_get_neighbors():
     """
     Spider should get a nodes neighbors from the edge table of the connected
     database or from a webservice.
     """
-    pass
+    skip()
+
 
 def test_get_strategy():
     """
@@ -38,7 +48,8 @@ def test_get_strategy():
     e.g. spiky ball or snow ball. Strategies should be configurable via the
     config interface and load the appropriate algorithm.
     """
-    pass
+    skip()
+
 
 def test_get_connector():
     """

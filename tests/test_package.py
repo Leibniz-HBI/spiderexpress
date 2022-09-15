@@ -1,4 +1,8 @@
-from pytest import fixture, skip, mark
+"""Test suite for package wide tests"""
+
+from pytest import skip
+
 
 def test_something():
-    pass
+    """or don't, you'll have to know."""
+    skip()
