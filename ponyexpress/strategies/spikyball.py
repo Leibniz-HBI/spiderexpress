@@ -1,7 +1,7 @@
 """spikyball sampling for ponyexpress
 
-Philipp Kessling
-Leibniz-Institute for Media Research, 2022
+ToDo:
+  - Nope?
 """
 
 # pylint: disable=W

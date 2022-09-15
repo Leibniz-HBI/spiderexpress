@@ -1,10 +1,6 @@
 """Application class for ponyexpress
 
-Philipp Kessling,
-Leibniz-Institute for Media Research, 2022.
-
-Constants
----------
+Constants:
 
 CONNECTOR_GROUP :
     str : group name of our connector entrypoint
@@ -12,10 +8,8 @@ CONNECTOR_GROUP :
 STRATEGY_GROUP :
     str : group name of our strategy entrypoint
 
-Todo
------
-- iteration in Spider.spider is not correctly implemented yet
-- implement the get_neighbor-methods!
+Todo:
+- add a flag too eagerly load data for unknown nodes from the connector.
 """
 
 # pylint: disable=W0613
@@ -46,20 +40,19 @@ class Spider:
     """This is ponyexpress' Spider
 
     With this animal we traverse the desert of social media networks.
+
+    Attributes:
+
+    configuration: Optional[Configuration] : the configuration
+        loaded from disk. None if not (yet) loaded.
+    connector: Optional[Connector] : the connector we use. None
+        if ``self.configuration`` is not yet loaded.
+    strategy: Optional[Strategy] : the strategy we use. None
+        if ``self.configuration`` is not yet loaded.
     """
 
     def __init__(self) -> None:
-        """This is the intializer
-
-
-        Params
-        ------
-
-        Returns
-        -------
-
-        None : Nothing. Nada.
-        """
+        """This is the intializer"""
         # set the loaded configuration to None, as it is not loaded yet
         self.configuration: Optional[Configuration] = None
         self.connector: Optional[Connector] = None
@@ -69,13 +62,7 @@ class Spider:
 
     @classmethod
     def available_configurations(cls) -> list[ConfigurationItem]:
-        """returns the names of available configuration files in the working directory
-
-        Returns
-        -------
-        list[str] : names of the configurations, [] if no present
-
-        """
+        """returns the names of available configuration files in the working directory"""
         return [
             ConfigurationItem(_, _.name.removesuffix(".pe.yml"))
             for _ in Path().glob("*.pe.yml")
@@ -84,10 +71,13 @@ class Spider:
     def start(self, config: str):
         """start a collection
 
-        Params
-        -----
+        Args:
+          config: str: the configuration's name which we want to load
 
-        config : str : the configuration's name which we want to load-
+        Returns:
+
+        A list of ``ConfigurationItem``, which holds information on
+            both the configuration's name and location on the file system.
         """
         self.load_config(config)
         if self.configuration:
@@ -102,9 +92,8 @@ class Spider:
     def load_config(self, config_name: str) -> None:
         """loads a named configuration
 
-        Params
-        ------
-        config_name : str : the name of the configuration to load
+        Args:
+          config_name: str: the name of the configuration to load
         """
         log.debug(
             f"Choosing from these configurations: {Spider.available_configurations()}"
@@ -121,11 +110,7 @@ class Spider:
             )
 
     def spider(self) -> None:
-        """runs the collections loop
-
-        Returns:
-        None : Nothing. Nada.
-        """
+        """runs the collections loop"""
         if not self.configuration:
             log.error("No configuration loaded. Aborting.")
             raise ValueError("Seed list is empty or non-existent.")
@@ -173,17 +158,13 @@ class Spider:
 
     def get_node_info(self, node_names: list[str]) -> pd.DataFrame:
         """returns the selected nodes properties.
+                The infos are either read from cache or requested via the connector.
 
-        The infos are either read from cache or requested via the connector.
+        Args:
+            node_names : list[str] : selected node names
 
-        Params
-        ------
-        node_names :
-            list[str] : selected node names
-
-        Returns
-        -------
-        pd.DataFrame : a table (node_name is the first column)
+        Returns:
+            A DataFrame with all of the information we have on these nodes.
         """
         # map each node
         def _mapper_(node_name: str):
@@ -207,15 +188,12 @@ class Spider:
     def get_neighbors(self, for_node_name) -> pd.DataFrame:
         """retrieve the incident edges for given node or nodes.
 
-        Parameters
-        ----------
+        Args:
+          for_node_name: str OR list[str] : either a single node name as string or a list of those.
 
-        for_node_name :
-            str OR list[str] : either a single node name as string or a list of those.
+        Returns:
 
-        Returns
-        -------
-        pd.DataFrame : the table of the edges incident to the specified node or nodes.
+            The table of the edges incident to the specified node or nodes.
         """
         raise NotImplementedError()
 
@@ -257,17 +235,16 @@ class Spider:
     def get_strategy(self, strategy_name: PlugInSpec) -> Strategy:
         """lazy load a Strategy
 
-        Params
-        ------
-        strategy_name : str : name of the strategy
+        Args:
+          strategy_name: PlugInSpec: name of the strategy
 
-        Returns
-        -------
-        Strategy : the wished for strategy
+        Returns:
+          the wished for strategy
 
-        Raises
-        ------
-        IndexError : if the strategy does not exist
+        Raises:
+         IndexError : if the strategy does not exist
+
+
         """
 
         return self._get_plugin_from_spec_(strategy_name, STRATEGY_GROUP)
@@ -275,17 +252,15 @@ class Spider:
     def get_connector(self, connector_name: PlugInSpec) -> Connector:
         """lazy load a Connector
 
-        Params
-        ------
-        connector_name : str : name of the connector
+        Args:
+          connector_name: PlugInSpec: name of the connector
 
-        Returns
-        -------
-        Connector : the wished for connector
 
-        Raises
-        ------
-        IndexError : if the connector does not exist
+        Returns:
+          the wished for connector.
+
+        Raises:
+          IndexError : if the connector does not exist
         """
         return self._get_plugin_from_spec_(connector_name, CONNECTOR_GROUP)
 
