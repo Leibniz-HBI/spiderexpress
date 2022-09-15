@@ -229,7 +229,7 @@ class Spider:
                 )
                 log.debug(f"Requesting: {query_string}")
 
-                return pd.read_sql(query_string)
+                return pd.read_sql(query_string, self._cache_)
             log.warning(f"No edges returned for {for_node_name}.")
 
             return pd.DataFrame()
