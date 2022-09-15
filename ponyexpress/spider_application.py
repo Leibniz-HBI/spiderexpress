@@ -52,7 +52,7 @@ class Spider:
     """
 
     def __init__(self) -> None:
-        """This is the intializer"""
+        """This is the initializer"""
         # set the loaded configuration to None, as it is not loaded yet
         self.configuration: Optional[Configuration] = None
         self.connector: Optional[Connector] = None
