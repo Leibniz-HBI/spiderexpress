@@ -1,34 +1,17 @@
 """unit test for utils.py
 
-Philipp Kessling
-Leibniz-Institute for Media Research, 2022
-
-Todo
-----
+ToDo:
 
 - further testing necessary
 
 """
 
-from dataclasses import asdict, dataclass
+from dataclasses import asdict
 
 import pytest
 
 from ponyexpress.types import fromdict
-
-
-@dataclass
-class MyFunkyTestClass:
-    """test me!"""
-
-    tester: dict
-
-
-@dataclass
-class MyOtherFunkyTestClass:
-    """test me harder!"""
-
-    testeringo: MyFunkyTestClass
+from tests.conftest import MyFunkyTestClass, MyOtherFunkyTestClass
 
 
 @pytest.mark.parametrize(

@@ -1,10 +1,6 @@
 """test suite for ponyexpress/spikyball.py
 
-Philipp Kessling
-Leibniz-Institute for Media Research, 2022
-
-Todos
------
+ToDo:
 
 - test for {sample, filter}_edges
 """
