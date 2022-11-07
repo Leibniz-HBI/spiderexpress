@@ -10,17 +10,21 @@ my_project/
 |- my_project.sqlite
 |- my_project.pe.yml
 |- seed_file.txt
-|- telethon.session
 ```
 
-Whereas `my_project.sqlite` is the resulting database, `my_project.pe.yml` is the project's configuration in which a data source and sampling strategy and other parameters may be specified (see [Configuration](#configuration) for further details).
+Whereas `my_project.sqlite` is the resulting database, `my_project.pe.yml` is the project's configuration in which a data source and sampling strategy and other parameters may be specified (see [Configuration](#configuration) for further details). `seed_file.txt` is a text file which contains one node name per line.
 
 ## Configuration
 
-`Ponyexpress`
+`Ponyexpress` utilizes YAML de-/serialization for it's configuration file. As such, initializing a project is as easy as: running `$ ponyexpress create` and a pleasureable and comforting dialogue prompt will guide you through the process.
+
+The resulting file could look like something like this example:
 
 ```
 project_name: spider
+batch_size: 150
+db_url: test2.sqlite
+max_iteration: 10000
 batch_size: 150
 db_url: test2.sqlite  # results database
 max_iteration: 10000
@@ -50,8 +54,6 @@ strategy:
 
 ## Table Schemas
 
-
-
 ### Nodes
 
 The nodes of the network are kept in two tables that adhere to the same schema:
@@ -67,7 +69,7 @@ although more meta data can be stored in the table.
 | degree      | node's degree                                       |
 | in_degree   | node's in degree                                    |
 | out_degree  | node's out degree                                   |
-| ...         | optionally addtional data coming from the connector |
+| ...         | optionally additional data coming from the connector |
 
 ### Edges
 
