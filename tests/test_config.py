@@ -1,17 +1,30 @@
+"""test suite for ponyexpress.Configuration"""
+
+from pytest import skip
+
+
 def test_intializer():
-    pass
+    """should do something"""
+    skip()
+
 
 def test_fields():
-    pass
+    """should do something"""
+    skip()
+
 
 def test_serialization():
-    pass
+    """should do something"""
+    skip()
+
 
 def test_deserialization():
-    pass
+    """should do something"""
+    skip()
+
 
 def test_seed_seedfile():
     """
     It should have either a seed file or a seed list, should throw otherwise.
     """
-    pass
+    skip()
