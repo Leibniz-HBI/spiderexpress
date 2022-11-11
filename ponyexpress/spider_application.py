@@ -18,7 +18,7 @@ from functools import partial, singledispatchmethod
 from importlib.metadata import entry_points
 from pathlib import Path
 from sqlite3 import Connection, connect
-from typing import Optional
+from typing import List, Optional
 
 import pandas as pd
 import yaml
@@ -144,12 +144,18 @@ class Spider:
 
     # section: database/network interactions
 
+    def append_known_nodes(self, nodes: List[str]):
+        """Mark nodes as visited"""
+        if self.configuration and self._cache_:
+            new_known_nodes = pd.DataFrame(nodes, columns=["name"])
+            new_known_nodes.to_sql("known_nodes", self._cache_, if_exists="append")
+
     def get_known_nodes(self) -> list[str]:
         """returns the name of all known nodes"""
         if self.configuration and self._cache_:
             try:
                 return pd.read_sql(
-                    f"SELECT DISTINCT name FROM {self.configuration.node_table_name}",
+                    "SELECT DISTINCT name FROM known_nodes",
                     self._cache_,
                 )["name"].tolist()
             except pd.io.sql.DatabaseError:
