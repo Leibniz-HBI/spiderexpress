@@ -86,7 +86,7 @@ class Configuration(yaml.YAMLObject):
         self.node_table_name = node_table_name
         self.max_iteration = max_iteration
         self.batch_size = batch_size
-        self.retry = (retry,)
+        self.retry = retry
         self.eagerly_get_neighbor_infos = eagerly_get_neighbor_infos
 
 
