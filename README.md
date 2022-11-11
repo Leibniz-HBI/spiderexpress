@@ -126,7 +126,7 @@ strategy:
 
 will result in the following function call `Strategy(edges, nodes, known_nodes, layer_max_size = 15)`.
 
-### Example 1: a sweat and simple strategy
+### Example 1: a sweet and simple strategy
 
 To futher illustrate the process we consider a implementation of random sampling,
 here our strategy is to select 10 random nodes for each layer:
