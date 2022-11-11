@@ -113,22 +113,46 @@ class Spider:
         """runs the collections loop"""
         if not self.configuration:
             log.error("No configuration loaded. Aborting.")
-            raise ValueError("Seed list is empty or non-existent.")
-        if not self.configuration.seeds or len(self.configuration.seeds) == 0:
-            raise ValueError("Seed list is empty or non-existent.")
-            # start with seed list
+            raise ValueError("Configuration is empty or non-existent.")
+        if not self.configuration.seeds:
+            raise ValueError("Seed list is non-existent.")
+        if self.connector is None:
+            raise ValueError("Cannot find Connector.")
+        if self.strategy is None:
+            raise ValueError("Could not find specified strategy. Aborting.")
+        if not self._cache_:
+            raise ValueError("No dataBase installed. Aborting.")
 
-        if self.connector is None or self.strategy is None:
-            raise ValueError("Seed list is empty or non-existent.")
+        # start with seed list
         seeds = self.configuration.seeds.copy()
 
         for _ in range(self.configuration.max_iteration):
+            # all the node we know already at this point
+            known_nodes = self.get_known_nodes()
+
             # in order too sample our network we pass the following information into the sampler
             log.debug(f"Starting iteration {_} with seeds: {', '.join(seeds)}.")
-            known_nodes = self.get_known_nodes()
-            # all the node we know already at this point
+
+            if self.configuration.retry is True and len(seeds) == 0:
+                log.debug("Encountered empty seed list, drawing a random sample")
+                seeds = (
+                    pd.Series(known_nodes)
+                    .sample(self.configuration.batch_size)
+                    .tolist()
+                )
+
             nodes = self.get_node_info(seeds)  # infos on the new seeds
             edges = self.get_neighbors(seeds)  # edges to the seeds neighbors
+
+            if self.configuration.eagerly_get_neighbor_infos is True:
+                #  do we want metadata on the neighboring nodes?
+                neighbors: pd.Series[str] = edges.target.drop_duplicates("first")
+                if "name" in nodes.columns:
+                    mask = neighbors.isin(nodes.name)
+                    nodes = pd.concat(
+                        [nodes, self.get_node_info(neighbors[~mask].tolist())]
+                    )
+
             seeds, edges_sparse, _ = self.strategy(
                 edges, nodes, known_nodes
             )  # finally we call the sampler
@@ -199,7 +223,7 @@ class Spider:
 
     @get_neighbors.register
     def _(self, for_node_name: str) -> pd.DataFrame:
-        if self.configuration:
+        if self.configuration and self._cache_:
             table_name = f"{self.configuration.edge_table_name}_dense"
             if self._db_ready_(table_name):
                 query_string = (
@@ -211,11 +235,11 @@ class Spider:
             log.warning(f"No edges returned for {for_node_name}.")
 
             return pd.DataFrame()
-        raise ValueError("Configuration is not loaded. Aborting")
+        raise ValueError("Configuration or Database is not loaded. Aborting")
 
     @get_neighbors.register
     def _(self, for_node_names: list) -> pd.DataFrame:
-        if self.configuration:
+        if self.configuration and self._cache_:
             table_name = f"{self.configuration.edge_table_name}_dense"
             if self._db_ready_(table_name):
                 node_name_string = ", ".join([f"'{_}'" for _ in for_node_names])
@@ -228,7 +252,7 @@ class Spider:
                 f"No edges returned for {','.join(for_node_names)} as the table does not exist."
             )
             return pd.DataFrame(columns=["source", "target", "weight"])
-        raise ValueError("Configuration is not loaded. Aborting")
+        raise ValueError("Configuration or Database is not loaded. Aborting")
 
     # section: plugin loading
 
@@ -267,7 +291,7 @@ class Spider:
     # section: private methods
 
     def _dispatch_connector_for_node_(self, node: str) -> pd.DataFrame:
-        if self.configuration and self.connector:
+        if self.configuration and self.connector and self._cache_:
             edges, nodes = self.connector([node])
             log.debug(f"edges:\n{edges}\n\nnodes:{nodes}\n")
             if len(edges) > 0:
@@ -289,7 +313,7 @@ class Spider:
                     method="multi",
                 )
             return nodes
-        raise ValueError("Configuration or Connector are not present")
+        raise ValueError("Configuration or Connector or DataBase are not present")
 
     def _get_cached_node_data_(self, node_name: str) -> Optional[pd.DataFrame]:
         if self.configuration and self._cache_:

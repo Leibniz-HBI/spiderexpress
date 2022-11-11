@@ -61,13 +61,15 @@ class Configuration(yaml.YAMLObject):
         seeds: Optional[list[str]] = None,
         seed_file: Optional[str] = None,
         project_name: str = "spider",
-        db_url: str = "sqlite:///{project_name}.sqlite",
+        db_url: Optional[str] = None,
         edge_table_name: str = "edge_list",
         node_table_name: str = "node_list",
         strategy: PlugInSpec = "spikyball",
         connector: PlugInSpec = "telegram",
         max_iteration: int = 10000,
         batch_size: int = 150,
+        retry: bool = True,
+        eagerly_get_neighbor_infos: bool = True,
     ) -> None:
         if seed_file is not None:
             _seed_file = Path(seed_file)
@@ -84,6 +86,8 @@ class Configuration(yaml.YAMLObject):
         self.node_table_name = node_table_name
         self.max_iteration = max_iteration
         self.batch_size = batch_size
+        self.retry = (retry,)
+        self.eagerly_get_neighbor_infos = eagerly_get_neighbor_infos
 
 
 @dataclass
