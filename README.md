@@ -4,7 +4,7 @@ A multi-purpose network sampling tool.
 
 ## Project set up
 
-A `ponyexpress` project will need the following files in place in the project directory (here exemplary named `my_project`):
+A `ponyexpress` project will need the following files in place in the project directory (here exemplary named `my_project`), whereas the SQLITE-database will be created if it not exists.
 
 ```tree
 my_project/
