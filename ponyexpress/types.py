@@ -48,7 +48,11 @@ returns:
 
     3. DataFrame with new nodes that needs to be added to the network
 """
-PlugInSpec = Union[str, Dict[str, Dict[str, Union[str, int]]]]
+PlugInSpec = Union[str, Dict[str, Union[str, Dict[str, Union[str, int]]]]]
+"""Plug-In Definition Notation.
+
+Allows either a ``str`` or a dictionary.
+"""
 
 
 class Configuration(yaml.YAMLObject):

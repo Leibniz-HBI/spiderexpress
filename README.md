@@ -83,6 +83,35 @@ The following table informs about the minimally necessary columns it will create
 | target      | target node name                            |
 | weight      | number of multi-edges between the two nodes |
 
+## Included Connectors
+
+### CSV connector
+
+This connector reads network from CSV files, one for the edges and, optionally, one for node information.
+The tables must follow the above stated column names for both kinds of tables.
+Required configuration are the following key-value-pairs:
+
+| Key                | Description                                                   |
+|--------------------|---------------------------------------------------------------|
+| edge_list_location | relative or absolute path to the edge CSV-file.               |
+| node_list_location | relative or absolute path to the edge CSV-file.               |
+| mode               | either "in", "out" or "both", determines which edges to emit. |
+
+
+Information must be given in the `ponyexpress`-project configuration file, e.g. consider the following configuration snippet:
+
+```yaml
+connector:
+  csv:
+    edge_list_location: path/to/file.csv
+    node_list_location: path/to/file.csv
+    mode: out
+```
+
+> [!info]
+> In the current implementation the tables are reread on each call of the connector, thus,
+> loading large networks will lead to long loading times.
+
 ## Extending Ponyexpress
 
 `Ponyexpress` is extensible via plug-ins and sports two `setuptools`entry points to register plug-ins with:
