@@ -47,7 +47,6 @@ strategy:
         coefficient: 1
         weights:
           views: 1
-
 ```
 
 ## Table Schemas
@@ -128,6 +127,13 @@ All Connectors must implement the following function interface:
 Connector = Callable[[list[str]], tuple[pd.DataFrame, pd.DataFrame]]
 # Connector(node_names: List[str]) -> DataFrame, DataFrame
 ```
+Where the returns are the following:
+
+- `List[str]` is a list of the new **seed nodes** for the next iteration,
+- `DataFrame` is the table of new **edges** to be added to the network,
+- `DataFrame` is the table of new **nodes** to be added to the network.
+- `Dict` is a dictionary holding additional configuration information fo the strategy.
+
 
 ### Strategy Specification
 
@@ -135,6 +141,11 @@ Connector = Callable[[list[str]], tuple[pd.DataFrame, pd.DataFrame]]
 Strategy = Callable[[pd.DataFrame, pd.DataFrame, list[str]], Tuple[list[str], pd.DataFrame, pd.DataFrame]]
 # Strategy(edges: DataFrame, nodes: DataFrame, known_nodes: List[str]) -> List[str], DataFrame, DataFrame
 ```
+The parameters are the following:
+- `DataFrame` is the table of **edges** to be sampled,
+- `DataFrame` is the table of **nodes** to be sampled.
+- `List[str]` is a list of the **visited nodes**,
+- `Dict` is a dictionary holding additional configuration information fo the strategy.
 
 Where the returns are the following:
 
