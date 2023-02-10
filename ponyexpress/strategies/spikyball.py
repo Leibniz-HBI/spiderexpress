@@ -8,7 +8,7 @@ ToDo:
 
 from dataclasses import dataclass
 from functools import reduce
-from typing import Tuple, Union
+from typing import Dict, List, Tuple, Union
 
 import pandas as pd
 from loguru import logger as log
@@ -296,8 +296,8 @@ def filter_edges(
 def spikyball_strategy(
     edges: pd.DataFrame,
     nodes: pd.DataFrame,
-    known_nodes: list[str],
-    configuration: Union[SpikyBallConfiguration, dict],
+    known_nodes: List[str],
+    configuration: Union[SpikyBallConfiguration, Dict],
 ) -> Tuple[list[str], pd.DataFrame, pd.DataFrame]:
     """
 
