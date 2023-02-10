@@ -35,8 +35,9 @@ def csv_connector(
         edges["source"].isin(node_ids)
     ]  # directed, out-going case at first
 
-    if nodes:
+    node_return = None
+    if nodes is not None:
         new_nodes = edge_return.target.unique().tolist()
-        nodes = nodes.loc[nodes.name.isin(new_nodes)]
+        node_return = nodes.loc[nodes.name.isin(new_nodes)]
 
-    return edge_return, nodes or pd.DataFrame()
+    return edge_return, node_return if node_return is not None else pd.DataFrame()
