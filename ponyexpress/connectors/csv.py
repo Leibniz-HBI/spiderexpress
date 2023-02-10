@@ -29,11 +29,17 @@ def csv_connector(
         if configuration.node_list_location
         else None
     )
+    if configuration.mode == "in":
+        mask = edges["target"].isin(node_ids)
+    elif configuration.mode == "out":
+        mask = edges["source"].isin(node_ids)
+    elif configuration.mode == "both":
+        mask = edges["target"].isin(node_ids) | edges["source"].isin(node_ids)
+    else:
+        raise ValueError(f"{configuration.mode} is not one of 'in', 'out' or 'both'.")
 
     # Filter edges that contain our input nodes
-    edge_return: pd.DataFrame = edges.loc[
-        edges["source"].isin(node_ids)
-    ]  # directed, out-going case at first
+    edge_return: pd.DataFrame = edges.loc[mask]
 
     node_return = None
     if nodes is not None:
