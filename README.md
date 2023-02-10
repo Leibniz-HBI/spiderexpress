@@ -107,7 +107,7 @@ connector:
     mode: out
 ```
 
-> [!info]
+> **Note**
 > In the current implementation the tables are reread on each call of the connector, thus,
 > loading large networks will lead to long loading times.
 
