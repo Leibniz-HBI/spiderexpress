@@ -72,11 +72,18 @@ def test_calc_norm(value: Tuple[pd.Series, pd.Series, pd.Series], expected: floa
             pd.Series(dtype=float),
         ),
         (
-            (
+            (  # check whether nans propagate
                 pd.DataFrame({"a": [1, 2, 3, 4, nan]}),
                 ProbabilityConfiguration(1, {"a": 1}),
             ),
             pd.Series([1, 2, 3, 4, nan]),
+        ),
+        (
+            (  # check whether given no variable gives uniform weights
+                pd.DataFrame({"a": [1, 2, 3, 4, 5, 6]}),
+                ProbabilityConfiguration(1, {}),
+            ),
+            pd.Series([1, 1, 1, 1, 1, 1]),
         ),
     ],
 )
@@ -89,7 +96,7 @@ def test_calc_prob(
         Tuple[pd.DataFrame, ProbabilityConfiguration] : arguments to `calc_prob`
 
     expected :
-        pd.Series : the calculated unnormalized weight for the entity
+        pd.Series : the calculated weights for the entity
     """
     for to_test, as_expected in zip(calc_prob(*value), expected):
         if isnan(as_expected):
