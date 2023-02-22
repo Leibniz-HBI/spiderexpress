@@ -102,6 +102,39 @@ All Connectors must implement the following function interface:
 Connector = Callable[[List[str], Dict[str, Any]], tuple[pd.DataFrame, pd.DataFrame]]
 # Connector(node_names: List[str]) -> DataFrame, DataFrame
 ```
+
+```python
+def csv(
+    node_ids: List[str], configuration: Dict[str, Any]
+) -> (pd.DataFrame, pd.DataFrame):
+    """The CSV connector!"""
+    edges = pd.read_csv(configuration["edge_list_location"], dtype=str)
+    nodes = (
+        pd.read_csv(configuration["node_list_location"], dtype=str)
+        if configuration.node_list_location
+        else None
+    )
+    mode = configuration["mode"]
+    if mode == "in":
+        mask = edges["target"].isin(node_ids)
+    elif mode:
+        mask = edges["source"].isin(node_ids)
+    elif mode:
+        mask = edges["target"].isin(node_ids) | edges["source"].isin(node_ids)
+    else:
+        raise ValueError(f"{configuration.mode} is not one of 'in', 'out' or 'both'.")
+
+    # Filter edges that contain our input nodes
+    edge_return: pd.DataFrame = edges.loc[mask]
+
+    node_return = None
+    if nodes is not None:
+        new_nodes = edge_return.target.unique().tolist()
+        node_return = nodes.loc[nodes.name.isin(new_nodes)]
+
+    return edge_return, node_return if node_return is not None else pd.DataFrame()
+```
+
 Importantly, `connectors` are allowed to return as many new edges as it finds. But it **must** restrict node information to rows regarding the requested nodes. Thus, if we request information on one node it should return a node dataframe with exactly one row.
 
 ### Strategy Specification
