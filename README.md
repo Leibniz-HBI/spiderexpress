@@ -135,7 +135,9 @@ def csv(
     return edge_return, node_return if node_return is not None else pd.DataFrame()
 ```
 
-Importantly, `connectors` are allowed to return as many new edges as it finds. But it **must** restrict node information to rows regarding the requested nodes. Thus, if we request information on one node it should return a node dataframe with exactly one row.
+Importantly, `connectors` are allowed to return as many new edges as it finds. But it **must** restrict node
+information to rows regarding the requested nodes. Thus, if we request information on one node it should
+return a node dataframe with exactly one row.
 
 ### Strategy Specification
 
@@ -173,26 +175,40 @@ here our strategy is to select a configureable number of random nodes for each l
 
 ```python
 
-def random_sampler(edges: DataFrame, nodes: DataFrame, known_nodes: List[str], config: Dict[str, int]):
-  number_of_nodes = config["n"]
-  
-  # split the edges table into edges _inside_ and _outside_ of the known network
-  mask = edges.target.isin(known_nodes)
-  edges_inward  = edges.loc[mask,:]
-  edges_outward = edges.loc[~mask, :]
-  
-  # select $n$ edges to follow
-  edges_sampled = edges_outward.sample(n=number_of_nodes, replace=False)
+def random(edges: pd.DataFrame, nodes: pd.DataFrame, known_nodes: List[str], configuration: Dict[str, int]):
+    """Draws a random sample of size $$n$$ from the given edges.
+    params:
+        edges: pd.dataFrame : edges to be sampled, expected to be simple, weighted
+        nodes: pd.DataFrame : node information
+        known_nodes : List[str] : already visited nodes
+        config: Dict[str, int] : configuration for this sampler
 
-  new_seeds = edges_sampled.target  # select target node names as seeds for the
-  
-  # next layer
-  edges_to_add = pd.concat(edges_inward, edges_sampled)  # add edges inside the
-  
-  # known network as well as the sampled edges to the known network
-  new_nodes = nodes.loc[nodes.name.isin(new_seeds), :]
-  
-  return new_seeds, edges_to_add, new_nodes
+    returns
+        new_seeds : List[str] : the next iteration's seeds
+        edges : pd.DataFrame : the sampled edges
+        new_nodes : pd.DataFrame : sampled nodes
+    """
+    number_of_nodes: int = configuration["n"]
+
+    # split the edges table into edges _inside_ and _outside_ of the known network
+    mask: pd.Series = edges.target.isin(known_nodes)
+    edges_inward: pd.DataFrame = edges.loc[mask, :]
+    edges_outward: pd.DataFrame = edges.loc[~mask, :]
+
+    # select $$n$$ edges to follow
+    if len(edges_outward.index) < number_of_nodes:
+        edges_sampled = edges_outward
+    else:
+        edges_sampled = edges_outward.sample(n=number_of_nodes, replace=False)
+
+    new_seeds = edges_sampled.target.unique().tolist()  # select target node names as seeds for the
+    # next layer
+
+    # known network as well as the sampled edges to the known network
+    edges_to_add = pd.concat([edges_inward, edges_sampled])  # add edges inside the
+
+    return new_seeds, edges_to_add, edges_outward
+
 ```
 
 To register it with `ponyexpress` add an entry to your `pyproject.toml` (for further information on entrypoints and poetry):
@@ -212,12 +228,12 @@ strategy:
 
 ## Developer Install
 
-- Install poetry
-- Clone repository
-- In the cloned repository's root directory run poetry install
-- Run poetry shell to start development virtualenv
-- Run pytest to run all tests
+- Install poetry,
+- Clone repository,
+- In the cloned repository's root directory run `poetry install`,
+- Run `poetry shell` to start development virtualenv,
+- Run `pytest` to run all tests.
 
 ---
 
-2022, [Philipp Kessling](mailto:p.kessling@leibniz-hbi.de) under the MIT license.
+2023, [Philipp Kessling](mailto:p.kessling@leibniz-hbi.de) under the MIT license.
