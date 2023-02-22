@@ -90,21 +90,25 @@ The following table informs about the minimally necessary columns it will create
 - `ponyexpress.connectors` under which a connector may be registered, i.e. a program that retrieves and returns *new* data from a data source.
 - `ponyexpress.strategies` under which sampling strategies may be registered.
 
+Further below we lay out the restrictions both kinds of plug-ins have to adhere to and how further configuration in the above described project file format is passed into the plug-ins.
+
 ### Connector Specification
 
-The idea of a `Connector` is to deliver *new* information of the network to be explored. The function takes a `List[str]` which is a list of node names for which we need information about and it returns two dataframes, the edges and the node information.
+The idea of a `Connector` is to deliver *new* information of the network to be explored. The function takes a `List[str]` which is a list of node names for which we need information about and it returns two dataframes, the edges and the node information. 
+
 All Connectors must implement the following function interface:
 
 ```python
-Connector = Callable[[list[str]], tuple[pd.DataFrame, pd.DataFrame]]
+Connector = Callable[[List[str], Dict[str, Any]], tuple[pd.DataFrame, pd.DataFrame]]
 # Connector(node_names: List[str]) -> DataFrame, DataFrame
 ```
+Importantly, `connectors` are allowed to return as many new edges as it finds. But it **must** restrict node information to rows regarding the requested nodes. Thus, if we request information on one node it should return a node dataframe with exactly one row.
 
 ### Strategy Specification
 
 ```python
-Strategy = Callable[[pd.DataFrame, pd.DataFrame, list[str]], Tuple[list[str], pd.DataFrame, pd.DataFrame]]
-# Strategy(edges: DataFrame, nodes: DataFrame, known_nodes: List[str]) -> List[str], DataFrame, DataFrame
+Strategy = Callable[[pd.DataFrame, pd.DataFrame, list[str], Dict[str, Any]], Tuple[list[str], pd.DataFrame, pd.DataFrame]]
+# Strategy(edges: DataFrame, nodes: DataFrame, known_nodes: List[str], configuration: Dict[str, Any]) -> List[str], DataFrame, DataFrame
 ```
 
 Where the returns are the following:
@@ -115,38 +119,62 @@ Where the returns are the following:
 
 ### Additional Parameters and Configurability
 
-The registered plug-ins must follow the below stated function interfaces. Although any additional parameters stated in the configuration file will be passed into the function as well.
-
-E.g. if a configuration file states:
+Any additional parameters stated in the configuration file will be passed into the function as well. E.g. if the configuration file states:
 
 ```yaml
 strategy:
-    layer_max_size: 15
+  spikyball:
+    layer_max_size: 150
 ```
 
-will result in the following function call `Strategy(edges, nodes, known_nodes, layer_max_size = 15)`.
+The resulting dictionary will be passed into the function call:
+
+```python
+Strategy(edges, nodes, known_nodes, {"layer_max_size" = 150})
+```
 
 ### Example 1: a sweet and simple strategy
 
 To futher illustrate the process we consider a implementation of random sampling,
-here our strategy is to select 10 random nodes for each layer:
+here our strategy is to select a configureable number of random nodes for each layer:
 
 ```python
 
-def random_sampler(edges: DataFrame, nodes: DataFrame, known_nodes: List[str]):
+def random_sampler(edges: DataFrame, nodes: DataFrame, known_nodes: List[str], config: Dict[str, int]):
+  number_of_nodes = config["n"]
+  
   # split the edges table into edges _inside_ and _outside_ of the known network
   mask = edges.target.isin(known_nodes)
   edges_inward  = edges.loc[mask,:]
   edges_outward = edges.loc[~mask, :]
-  # select 10 edges to follow
-  edges_sampled = edges_outward.sample(n=10, replace=False)
+  
+  # select $n$ edges to follow
+  edges_sampled = edges_outward.sample(n=number_of_nodes, replace=False)
 
   new_seeds = edges_sampled.target  # select target node names as seeds for the
+  
   # next layer
   edges_to_add = pd.concat(edges_inward, edges_sampled)  # add edges inside the
+  
   # known network as well as the sampled edges to the known network
   new_nodes = nodes.loc[nodes.name.isin(new_seeds), :]
+  
   return new_seeds, edges_to_add, new_nodes
+```
+
+To register it with `ponyexpress` add an entry to your `pyproject.toml` (for further information on entrypoints and poetry):
+
+```toml
+[tool.poetry.plugins."ponyexpress.strategies"]
+random = "my_ponyexpress_package:random_sampler"
+```
+
+Finally, we can create a new proejct configuration in which we can include the new sampler:
+
+```yaml
+strategy:
+  random:
+    n: 10
 ```
 
 ## Developer Install
