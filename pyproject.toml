@@ -38,6 +38,7 @@ ponyexpress = 'ponyexpress.cli:cli'
 
 [tool.poetry.plugins."ponyexpress.connectors"]
 telegram = "ponyexpress.connectors.telegram:telegram_connector"
+csv = "ponyexpress.connectors.csv:csv_connector"
 
 [tool.poetry.plugins."ponyexpress.strategies"]
 spikyball = "ponyexpress.strategies.spikyball:spikyball_strategy"

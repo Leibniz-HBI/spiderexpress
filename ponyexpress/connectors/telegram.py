@@ -6,7 +6,7 @@ ToDo:
 """
 
 from functools import reduce
-from typing import Optional, Tuple
+from typing import List, Optional, Tuple
 
 import pandas as pd
 import requests
@@ -147,13 +147,13 @@ def get_user(page) -> pd.DataFrame:
     return data
 
 
-def telegram_connector(node_names: list[str]) -> Tuple[pd.DataFrame, pd.DataFrame]:
+def telegram_connector(node_names: List[str]) -> Tuple[pd.DataFrame, pd.DataFrame]:
     """for a list of handles scrape their public telegram channels
 
     That is, if there is a public channel present for the specified handles.
 
     Args:
-      node_names: list[str]:  list of handles to scrape
+      node_names: List[str]:  list of handles to scrape
 
     Returns:
 

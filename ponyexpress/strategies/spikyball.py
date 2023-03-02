@@ -8,7 +8,7 @@ ToDo:
 
 from dataclasses import dataclass
 from functools import reduce
-from typing import Tuple, Union
+from typing import Dict, List, Tuple, Union
 
 import pandas as pd
 from loguru import logger as log
@@ -27,11 +27,11 @@ class ProbabilityConfiguration:
         float : yup
 
     weights :
-        dict[str, float] : keys are interpreted as columns in the node data
+        Dict[str, float] : keys are interpreted as columns in the node data
     """
 
     coefficient: float
-    weights: dict[str, float]
+    weights: Dict[str, float]
 
 
 @dataclass
@@ -176,7 +176,7 @@ def sample_edges(
     nodes: pd.DataFrame,
     parameters: SamplerConfiguration,
     max_layer_size: int,
-) -> Tuple[list[str], pd.DataFrame]:
+) -> Tuple[List[str], pd.DataFrame]:
     """this function samples the outward edges (edges to nodes not yet seen)
 
     Description
@@ -203,7 +203,7 @@ def sample_edges(
     Returns
     -------
 
-    list[str] : the new seeds for the next iteration
+    List[str] : the new seeds for the next iteration
 
     pd.DataFrame : the sparse edge set to add to the sampled network
 
@@ -258,7 +258,7 @@ def sample_edges(
 
 
 def filter_edges(
-    edges: pd.DataFrame, known_nodes: list[str]
+    edges: pd.DataFrame, known_nodes: List[str]
 ) -> Tuple[pd.DataFrame, pd.DataFrame]:
     """
     When the raw data has been collected from the network,
@@ -273,7 +273,7 @@ def filter_edges(
     edges : pd.DataFrame
         the edges to filter
 
-    known_nodes : list[str]
+    known_nodes : List[str]
         the nodes to split the edge table on
 
     Returns
@@ -296,9 +296,9 @@ def filter_edges(
 def spikyball_strategy(
     edges: pd.DataFrame,
     nodes: pd.DataFrame,
-    known_nodes: list[str],
-    configuration: Union[SpikyBallConfiguration, dict],
-) -> Tuple[list[str], pd.DataFrame, pd.DataFrame]:
+    known_nodes: List[str],
+    configuration: Union[SpikyBallConfiguration, Dict],
+) -> Tuple[List[str], pd.DataFrame, pd.DataFrame]:
     """
 
     See [this paper](https://arxiv.org/abs/2010.11786).
