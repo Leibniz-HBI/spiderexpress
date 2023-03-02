@@ -6,7 +6,7 @@ authors = ["Philipp Kessling <p.kessling@leibniz-hbi.de>"]
 license = "MIT"
 
 [tool.poetry.dependencies]
-python = ">=3.9, <3.10"
+python = "^3.8"
 pandas = "*"
 lxml = "*"
 SQLAlchemy = "*"
