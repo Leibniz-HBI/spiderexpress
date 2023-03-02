@@ -12,6 +12,7 @@ Todo
 - find a mechanism for stopping/starting collections
 """
 from pathlib import Path
+from typing import List
 
 import click
 import yaml
@@ -29,7 +30,7 @@ def cli(ctx):
     log.debug("Hello!")
 
 
-def complete_project_name(*args) -> list[str]:
+def complete_project_name(*args) -> List[str]:
     """
     Searches/lists all project confs in the current context
     """

@@ -18,7 +18,7 @@ from functools import partial, singledispatchmethod
 from importlib.metadata import entry_points
 from pathlib import Path
 from sqlite3 import Connection, connect
-from typing import Optional
+from typing import List, Optional
 
 import pandas as pd
 import yaml
@@ -61,7 +61,7 @@ class Spider:
         self._layer_counter_ = 0
 
     @classmethod
-    def available_configurations(cls) -> list[ConfigurationItem]:
+    def available_configurations(cls) -> List[ConfigurationItem]:
         """returns the names of available configuration files in the working directory"""
         return [
             ConfigurationItem(_, _.name.removesuffix(".pe.yml"))
@@ -144,7 +144,7 @@ class Spider:
 
     # section: database/network interactions
 
-    def get_known_nodes(self) -> list[str]:
+    def get_known_nodes(self) -> List[str]:
         """returns the name of all known nodes"""
         if self.configuration and self._cache_:
             try:
@@ -156,15 +156,15 @@ class Spider:
                 return []
         raise ValueError("configuration and data base are not set up")
 
-    def get_node_info(self, node_names: list[str]) -> pd.DataFrame:
+    def get_node_info(self, node_names: List[str]) -> pd.DataFrame:
         """returns the selected nodes properties.
                 The infos are either read from cache or requested via the connector.
 
         Args:
-            node_names : list[str] : selected node names
+            node_names : List[str] : selected node names
 
         Returns:
-            A DataFrame with all of the information we have on these nodes.
+            A DataFrame with all the information we have on these nodes.
         """
         # map each node
         def _mapper_(node_name: str):
@@ -189,7 +189,7 @@ class Spider:
         """retrieve the incident edges for given node or nodes.
 
         Args:
-          for_node_name: str OR list[str] : either a single node name as string or a list of those.
+          for_node_name: str OR List[str] : either a single node name as string or a list of those.
 
         Returns:
 

@@ -5,7 +5,7 @@ ToDo:
 - test for {sample, filter}_edges
 """
 
-from typing import Tuple
+from typing import List, Tuple
 
 import pandas as pd
 import pytest
@@ -121,7 +121,7 @@ def test_calc_prob(
     ],
 )
 def test_filter_edges(
-    value: Tuple[pd.DataFrame, list[str]], expected: Tuple[pd.DataFrame, pd.DataFrame]
+    value: Tuple[pd.DataFrame, List[str]], expected: Tuple[pd.DataFrame, pd.DataFrame]
 ):
     """test ``filter_edges``"""
     e_in, e_out, *_ = expected

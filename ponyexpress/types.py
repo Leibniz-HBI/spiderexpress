@@ -10,12 +10,12 @@ Leibniz-Institute for Media Research, 2022
 
 from dataclasses import dataclass, fields
 from pathlib import Path
-from typing import Callable, Dict, Optional, Tuple, Type, TypeVar, Union
+from typing import Callable, Dict, List, Optional, Tuple, Type, TypeVar, Union
 
 import pandas as pd
 import yaml
 
-Connector = Callable[[list[str]], tuple[pd.DataFrame, pd.DataFrame]]
+Connector = Callable[[List[str]], Tuple[pd.DataFrame, pd.DataFrame]]
 """Connector Interface
 
 args:
@@ -28,8 +28,8 @@ returns:
     A node table with information on the requested nodes.
 """
 Strategy = Callable[
-    [pd.DataFrame, pd.DataFrame, list[str]],
-    Tuple[list[str], pd.DataFrame, pd.DataFrame],
+    [pd.DataFrame, pd.DataFrame, List[str]],
+    Tuple[List[str], pd.DataFrame, pd.DataFrame],
 ]
 """Strategy Interface
 
@@ -62,7 +62,7 @@ class Configuration(yaml.YAMLObject):
 
     def __init__(
         self,
-        seeds: Optional[list[str]] = None,
+        seeds: Optional[List[str]] = None,
         seed_file: Optional[str] = None,
         project_name: str = "spider",
         db_url: str = "sqlite:///{project_name}.sqlite",
@@ -115,13 +115,13 @@ def fromdict(cls: Type[T], dictionary: dict) -> T:
     returns:
         the dataclass with values from the dictionary
     """
-    fieldtypes: dict[str, type] = {f.name: f.type for f in fields(cls)}
+    fieldtypes: Dict[str, type] = {f.name: f.type for f in fields(cls)}
     return cls(
         **{
             key: fromdict(fieldtypes[key], value)
             # we test whether the current value is a dict and whether it should be kept a dict.
-            # py discerns generic types, thus, dict == dict[unknown, unknown]
-            # but dict != dict[str, float].
+            # py discerns generic types, thus, dict == Dict[unknown, unknown]
+            # but Dict != Dict[str, float].
             # Thus, making our life hard and it necessary to test against to name of the type.
             if isinstance(value, dict)
             and not fieldtypes[key].__name__.startswith("dict")
