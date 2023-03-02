@@ -162,7 +162,7 @@ def calc_prob(table: pd.DataFrame, params: ProbabilityConfiguration) -> pd.Serie
     5     6.0
     dtype: float64
     """
-    if params.weights:
+    if params.weights and len(params.weights) != 0:
         weights = [
             table[key].astype(float) * weight for key, weight in params.weights.items()
         ]
@@ -212,12 +212,12 @@ def sample_edges(
     """
     source_nodes = (
         outward_edges.reset_index()
-        .merge(nodes, left_on="source", right_on="name", validate="m:1")
+        .merge(nodes, left_on="source", right_on="name")
         .set_index("index")
     )
     target_nodes = (
         outward_edges.reset_index()
-        .merge(nodes, left_on="target", right_on="name", validate="m:1")
+        .merge(nodes, left_on="target", right_on="name")
         .set_index("index")
     )
 
