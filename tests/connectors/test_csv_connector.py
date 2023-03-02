@@ -43,9 +43,10 @@ def test_simple_case(simple_configuration):
     ],
 )
 def test_retrieval_modes(mode, shape, seventh_grader_configuration):
-    "Should correctly get incoming, outgoing edges as well as both directions."
+    """Should correctly get incoming, outgoing edges as well as both directions."""
     seventh_grader_configuration["mode"] = mode
     edges, nodes = csv_connector(["1", "13"], seventh_grader_configuration)
 
     assert edges.shape == shape
     assert nodes.empty is False
+    assert len(nodes.index) == 2
