@@ -41,9 +41,9 @@ def csv_connector(
     # Filter edges that contain our input nodes
     edge_return: pd.DataFrame = edges.loc[mask]
 
-    node_return = None
-    if nodes is not None:
-        new_nodes = edge_return.target.unique().tolist()
-        node_return = nodes.loc[nodes.name.isin(new_nodes)]
-
-    return edge_return, node_return if node_return is not None else pd.DataFrame()
+    return (
+        edge_return,
+        nodes.loc[nodes.name.isin(node_ids), :]
+        if nodes is not None
+        else pd.DataFrame(),
+    )
