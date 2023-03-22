@@ -4,7 +4,7 @@ It keeps track of the crawled data, the configuration and the current state of t
 """
 # pylint: disable=R0903
 
-from typing import Dict, Tuple
+from typing import Dict, Tuple, Type
 
 import sqlalchemy as sql
 from sqlalchemy import orm
@@ -48,7 +48,7 @@ class SeedList(Base):
 
 def create_raw_edge_table(
     name: str, spec_variadic: Dict[str, str]
-) -> Tuple[sql.Table, type["RawEdge"]]:
+) -> Tuple[sql.Table, Type["RawEdge"]]:
     """Create an edge table dynamically.
 
     parameters:
@@ -88,7 +88,7 @@ def create_raw_edge_table(
 
 def create_aggregated_edge_table(
     name: str, spec_variadic: Dict[str, str]
-) -> Tuple[sql.Table, type["AggEdge"]]:
+) -> Tuple[sql.Table, Type["AggEdge"]]:
     """Create an aggregated edge table dynamically.
 
     parameters:
@@ -129,7 +129,7 @@ def create_aggregated_edge_table(
 
 def create_node_table(
     name: str, spec_variadic: Dict[str, str]
-) -> Tuple[sql.Table, type["Node"]]:
+) -> Tuple[sql.Table, Type["Node"]]:
     """Create a node table dynamically.
 
     parameters:
