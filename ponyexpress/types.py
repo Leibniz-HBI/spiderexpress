@@ -53,6 +53,8 @@ PlugInSpec = Union[str, Dict[str, Union[str, Dict[str, Union[str, int]]]]]
 
 Allows either a ``str`` or a dictionary.
 """
+ColumnSpec = Dict[str, Union[str, Dict[str, str]]]
+"""Column Specification."""
 
 
 class Configuration(yaml.YAMLObject):
@@ -65,9 +67,11 @@ class Configuration(yaml.YAMLObject):
         seeds: Optional[List[str]] = None,
         seed_file: Optional[str] = None,
         project_name: str = "spider",
-        db_url: str = "sqlite:///{project_name}.sqlite",
-        edge_table_name: str = "edge_list",
-        node_table_name: str = "node_list",
+        db_url: Optional[str] = None,
+        db_schema: Optional[str] = None,
+        edge_raw_table: Optional[ColumnSpec] = None,
+        edge_agg_table: Optional[ColumnSpec] = None,
+        node_table: Optional[ColumnSpec] = None,
         strategy: PlugInSpec = "spikyball",
         connector: PlugInSpec = "telegram",
         max_iteration: int = 10000,
@@ -83,9 +87,11 @@ class Configuration(yaml.YAMLObject):
         self.strategy = strategy
         self.connector = connector
         self.project_name = project_name
-        self.db_url = db_url or f"{project_name}.sqlite"
-        self.edge_table_name = edge_table_name
-        self.node_table_name = node_table_name
+        self.db_url = db_url or f"sqlite://{project_name}.db"
+        self.db_schema = db_schema
+        self.edge_raw_table = edge_raw_table or {"name": "edge_raw", "columns": {}}
+        self.edge_agg_table = edge_agg_table or {"name": "edge_agg", "columns": {}}
+        self.node_table = node_table or {"name": "node", "columns": {}}
         self.max_iteration = max_iteration
         self.batch_size = batch_size
 
@@ -115,7 +121,7 @@ def fromdict(cls: Type[T], dictionary: dict) -> T:
     returns:
         the dataclass with values from the dictionary
     """
-    fieldtypes: Dict[str, type] = {f.name: f.type for f in fields(cls)}
+    fieldtypes: Dict[str, Type] = {f.name: f.type for f in fields(cls)}
     return cls(
         **{
             key: fromdict(fieldtypes[key], value)
