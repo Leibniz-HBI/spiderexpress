@@ -4,7 +4,7 @@ It keeps track of the crawled data, the configuration and the current state of t
 """
 # pylint: disable=R0903
 
-from typing import Dict, Tuple, Type
+from typing import Any, Callable, Dict, List, Tuple, Type
 
 import sqlalchemy as sql
 from sqlalchemy import orm
@@ -43,12 +43,29 @@ class SeedList(Base):
     id: orm.Mapped[str] = orm.mapped_column(primary_key=True, index=True)
     status: orm.Mapped[str] = orm.mapped_column()
     iteration: orm.Mapped[int] = orm.mapped_column()
-    last_crawled_at: orm.Mapped[str] = orm.mapped_column()
+    last_crawled_at: orm.Mapped[str] = orm.mapped_column(nullable=True)
+
+
+def create_factory(
+    cls: Type[Any], spec_fixed: List[sql.Column], spec_variadic: Dict[str, Any]
+) -> Callable:
+    """Create a factory function for a given class."""
+
+    def _(data: Dict[str, Any]) -> Type[Any]:
+        return cls(
+            **{
+                key: data.get(key)
+                for key in [column.name for column in spec_fixed]
+                + list(spec_variadic.keys())
+            }
+        )
+
+    return _
 
 
 def create_raw_edge_table(
     name: str, spec_variadic: Dict[str, str]
-) -> Tuple[sql.Table, Type["RawEdge"]]:
+) -> Tuple[sql.Table, Type["RawEdge"], Callable]:
     """Create an edge table dynamically.
 
     parameters:
@@ -59,8 +76,10 @@ def create_raw_edge_table(
         table: the table
     """
     spec_fixed = [
-        sql.Column("source", sql.Text, primary_key=True, index=True),
-        sql.Column("target", sql.Text, primary_key=True, index=True),
+        sql.Column("id", sql.Integer, primary_key=True, index=True, autoincrement=True),
+        sql.Column("source", sql.Text, index=True, unique=False),
+        sql.Column("target", sql.Text, index=True, unique=False),
+        sql.Column("iteration", sql.Integer, index=True, unique=False),
     ]
 
     table = sql.Table(
@@ -83,12 +102,12 @@ def create_raw_edge_table(
 
     mapper_registry.map_imperatively(RawEdge, table)
 
-    return table, RawEdge
+    return table, RawEdge, create_factory(RawEdge, spec_fixed, spec_variadic)
 
 
 def create_aggregated_edge_table(
     name: str, spec_variadic: Dict[str, str]
-) -> Tuple[sql.Table, Type["AggEdge"]]:
+) -> Tuple[sql.Table, Type["AggEdge"], Callable]:
     """Create an aggregated edge table dynamically.
 
     parameters:
@@ -102,6 +121,7 @@ def create_aggregated_edge_table(
         sql.Column("source", sql.Text, primary_key=True, index=True),
         sql.Column("target", sql.Text, primary_key=True, index=True),
         sql.Column("weight", sql.Integer),
+        sql.Column("iteration", sql.Integer, index=True, unique=False),
     ]
 
     table = sql.Table(
@@ -124,12 +144,12 @@ def create_aggregated_edge_table(
 
     mapper_registry.map_imperatively(AggEdge, table)
 
-    return table, AggEdge
+    return table, AggEdge, create_factory(AggEdge, spec_fixed, spec_variadic)
 
 
 def create_node_table(
     name: str, spec_variadic: Dict[str, str]
-) -> Tuple[sql.Table, Type["Node"]]:
+) -> Tuple[sql.Table, Type["Node"], Callable]:
     """Create a node table dynamically.
 
     parameters:
@@ -140,7 +160,8 @@ def create_node_table(
         table: the table
     """
     spec_fixed = [
-        sql.Column("id", sql.Text, primary_key=True, index=True),
+        sql.Column("name", sql.Text, primary_key=True, index=True),
+        sql.Column("iteration", sql.Integer, index=True, unique=False),
     ]
 
     table = sql.Table(
@@ -163,4 +184,4 @@ def create_node_table(
 
     mapper_registry.map_imperatively(Node, table)
 
-    return table, Node
+    return table, Node, create_factory(Node, spec_fixed, spec_variadic)

@@ -54,11 +54,11 @@ strategy:
 ### Nodes
 
 The nodes of the network are kept in two tables that adhere to the same schema:
-*sparse_nodes* and *dense_nodes*, where as in the sparse table only sampled nodes are
+*sparse_nodes* and *dense_nodes*, whereas in the sparse table only sampled nodes are
 persisted and the dense table includes all nodes ponyexpress collected in the process.
 
 The following table informs about the minimally necessary columns it will create,
-although more meta data can be stored in the table.
+although more metadata can be stored in the table.
 
 | Column Name | Description                                         |
 | ----------- | --------------------------------------------------- |
@@ -71,7 +71,7 @@ although more meta data can be stored in the table.
 ### Edges
 
 The edges of the network are kept in two tables that adhere to the same schema:
-*sparse_edges* and *dense_edges*, where as in the sparse table only sampled edges are
+*sparse_edges* and *dense_edges*, whereas in the sparse table only sampled edges are
 persisted and the dense table includes all edges ponyexpress collected in the process.
 
 The following table informs about the minimally necessary columns it will create, although more meta data can be stored in the table.
