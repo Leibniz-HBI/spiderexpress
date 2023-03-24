@@ -1,0 +1,29 @@
+!ponyexpress:Configuration
+batch_size: 150
+connector:
+  csv:
+    node_list_location: tests/stubs/7th_graders/nodes.csv
+    edge_list_location: tests/stubs/7th_graders/edges.csv
+    mode: out
+db_url: sqlite:///
+db_schema:
+edge_table_name: edge_list
+max_iteration: 10000
+node_table:
+  name: sevens_grader_nodes
+  columns: {}
+edge_raw_table:
+  name: sevens_grader_edge_raw
+  columns:
+    layer: Integer
+edge_agg_table:
+  name: sevens_grader_edge_agg
+  columns:
+    layer: Integer
+project_name: spider
+seeds:
+  - "1"
+  - "13"
+strategy:
+  random:
+    n: 5
