@@ -69,6 +69,8 @@ class Configuration(yaml.YAMLObject):
         project_name: str = "spider",
         db_url: Optional[str] = None,
         db_schema: Optional[str] = None,
+        empty_seeds: str = "stop",
+        eager: bool = True,
         edge_raw_table: Optional[ColumnSpec] = None,
         edge_agg_table: Optional[ColumnSpec] = None,
         node_table: Optional[ColumnSpec] = None,
@@ -94,6 +96,8 @@ class Configuration(yaml.YAMLObject):
         self.node_table = node_table or {"name": "node", "columns": {}}
         self.max_iteration = max_iteration
         self.batch_size = batch_size
+        self.empty_seeds = empty_seeds if empty_seeds in ["stop", "retry"] else "stop"
+        self.eager = eager
 
 
 @dataclass
