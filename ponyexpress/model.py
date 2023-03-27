@@ -120,8 +120,10 @@ def create_aggregated_edge_table(
     spec_fixed = [
         sql.Column("source", sql.Text, primary_key=True, index=True),
         sql.Column("target", sql.Text, primary_key=True, index=True),
+        sql.Column(
+            "iteration", sql.Integer, primary_key=True, index=True, unique=False
+        ),
         sql.Column("weight", sql.Integer),
-        sql.Column("iteration", sql.Integer, index=True, unique=False),
     ]
 
     table = sql.Table(

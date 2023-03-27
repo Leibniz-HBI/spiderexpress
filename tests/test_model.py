@@ -75,7 +75,9 @@ def test_create_aggregated_edge_table_with_session(session, create_tables):
 
     create_tables()
 
-    edge = edge_factory({"source": "a", "target": "b", "weight": 1, "view_count": 1})
+    edge = edge_factory(
+        {"source": "a", "target": "b", "weight": 1, "view_count": 1, "iteration": 0}
+    )
     session.add(edge)
     session.commit()
 

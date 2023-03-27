@@ -75,10 +75,6 @@ class Spider:
             "on_enter": ["refresh_task_buffer", "gather_node_data"],
         },
         {
-            "name": "aggregating",
-            "on_enter": "aggregate_edges",
-        },
-        {
             "name": "sampling",
             "on_enter": "sample_network",
         },
@@ -115,15 +111,10 @@ class Spider:
             "conditions": "is_gathering_not_done",
         },
         {
-            "trigger": "aggregate",
-            "source": "gathering",
-            "dest": "aggregating",
-            "conditions": "is_gathering_done",
-        },
-        {
             "trigger": "sample",
-            "source": "aggregating",
+            "source": "gathering",
             "dest": "sampling",
+            "conditions": "is_gathering_done",
         },
         {
             "trigger": "gather",
@@ -178,9 +169,9 @@ class Spider:
         if self.state == "idle":
             return
         if self.state == "gathering":
-            if self.may_aggregate():
+            if self.may_sample():
                 log.debug("Advancing from gathering to aggregating")
-                self.trigger("aggregate")
+                self.trigger("sample")
                 return
             log.debug("Retaining in gathering")
             self.trigger("gather")
@@ -338,45 +329,6 @@ class Spider:
 
         return self.appstate.iteration < self.configuration.max_iteration
 
-    def aggregate_edges(self):
-        """Aggregates the edges."""
-        if not self._cache_:
-            raise ValueError("Cache is not present.")
-        if AggEdge is None:
-            raise ValueError("Aggregated edge table is not present.")
-
-        log.debug("Attempting to aggregate edges.")
-
-        columns = [RawEdge.source, RawEdge.target, sql.func.count.label("weight")]
-
-        # with self._cache_.begin():
-        # Get all the edges
-        edges = self._cache_.execute(
-            sql.select(*columns)
-            .where(SeedList.iteration == self.appstate.iteration)
-            .join(RawEdge, SeedList.id == RawEdge.source)
-            .group_by(RawEdge.source, RawEdge.target)
-            .select_from(SeedList)
-        ).fetchall()
-
-        log.debug(f"Found {len(edges)} edges.")
-        edges = [
-            {
-                key: value
-                for value, key in zip(edge, [column.name for column in columns])
-            }
-            for edge in edges
-        ]
-        edges = [
-            agg_edge_factory({**edge, "iteration": self.appstate.iteration})
-            for edge in edges
-        ]
-
-        for edge in edges:
-            if self._cache_.get(AggEdge, (edge.source, edge.target)) is None:
-                self._cache_.add(edge)
-        self._cache_.commit()
-
     def sample_network(self):
         """Samples the network."""
         if not self._cache_:
@@ -390,8 +342,15 @@ class Spider:
 
         # with self._cache_.begin():
         edges = pd.read_sql(
-            self._cache_.query(RawEdge)
+            self._cache_.query(
+                RawEdge.source,
+                RawEdge.target,
+                RawEdge.iteration,
+                sql.func.count.label("weight"),
+            )
             .where(RawEdge.iteration == self.appstate.iteration)
+            .group_by(RawEdge.source, RawEdge.target, RawEdge.iteration)
+            # .select_from(RawEdge)
             .statement,
             self._cache_.connection(),
         )
@@ -400,7 +359,7 @@ class Spider:
         )
         known_nodes = self._cache_.execute(sql.select(SeedList.id)).scalars().all()
 
-        new_seeds, _, _ = self.strategy(edges, nodes, known_nodes)
+        new_seeds, new_edges, _ = self.strategy(edges, nodes, known_nodes)
 
         if len(new_seeds) == 0:
             log.debug("Found no new seeds.")
@@ -413,6 +372,9 @@ class Spider:
                         id=seed, iteration=self.appstate.iteration + 1, status="new"
                     )
                 )
+        self._cache_.add_all(
+            [agg_edge_factory(edge) for edge in new_edges.to_dict(orient="records")]
+        )
         self._cache_.commit()
 
     def load_plugins(self, *args):
