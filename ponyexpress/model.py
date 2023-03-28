@@ -46,6 +46,20 @@ class SeedList(Base):
     last_crawled_at: orm.Mapped[str] = orm.mapped_column(nullable=True)
 
 
+class TaskList(Base):
+    """Table of tasks for each iteration."""
+
+    __tablename__ = "task_list"
+
+    id: orm.Mapped[int] = orm.mapped_column(primary_key=True, autoincrement=True)
+    node_id: orm.Mapped[str] = orm.mapped_column()
+    status: orm.Mapped[str] = orm.mapped_column()
+    connector: orm.Mapped[str] = orm.mapped_column()
+    parent_task_id: orm.Mapped[str] = orm.mapped_column(nullable=True)
+    initiated_at: orm.Mapped[str] = orm.mapped_column(nullable=True)
+    finished_at: orm.Mapped[str] = orm.mapped_column(nullable=True)
+
+
 def create_factory(
     cls: Type[Any], spec_fixed: List[sql.Column], spec_variadic: Dict[str, Any]
 ) -> Callable:
