@@ -7,6 +7,8 @@ connector:
     mode: out
 db_url: sqlite:///
 db_schema:
+eager: false
+empty_seeds: stop
 edge_table_name: edge_list
 max_iteration: 10000
 node_table:
