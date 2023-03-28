@@ -18,7 +18,10 @@ def random_strategy(
     edges_outward = edges.loc[~mask, :]
 
     # select 10 edges to follow
-    edges_sampled = edges_outward.sample(n=configuration["n"], replace=False)
+    if len(edges_outward) < configuration["n"]:
+        edges_sampled = edges_outward
+    else:
+        edges_sampled = edges_outward.sample(n=configuration["n"], replace=False)
 
     new_seeds = edges_sampled.target  # select target node names as seeds for the
     # next layer
