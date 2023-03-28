@@ -315,7 +315,9 @@ class Spider:
         if not self._cache_:
             raise ValueError("Cache is not present.")
         if not isinstance(task, (SeedList, Node, str)):
-            raise ValueError("Task must be a seed, a node or a node-identifier.")
+            raise ValueError(
+                "Task must be a seed, a node or a node-identifier, but is {type(task).__name__}"
+            )
 
         node_id = (
             task.name
@@ -409,7 +411,7 @@ class Spider:
         self._cache_.commit()
 
     def gather_node_data(self):
-        """Gathers node data for the seeds."""
+        """Gathers node data for the first task in queue."""
         if not self._cache_:
             raise ValueError("Cache is not present.")
         if Node is None:
@@ -419,6 +421,7 @@ class Spider:
             return
 
         task: TaskList = self.task_buffer.pop(0)
+
         log.debug(f"Attempting to gather data for {task.node_id}.")
 
         # Begin transaction with the cache
@@ -460,18 +463,24 @@ class Spider:
         log.debug("Attempting to sample the network.")
 
         aggregation_spec = self.configuration.edge_agg_table["columns"]
+        aggregation_funcs = {
+            "count": sql.func.count,
+            "max": sql.func.max,
+            "min": sql.func.min,
+            "sum": sql.func.sum,
+            "avg": sql.func.avg,
+        }
 
         aggregations = [
             sql.func.count().label(  # pylint: disable=E1102 # not-callable, but it is :shrug:
                 "weight"
             ),
             *[
-                sql.func[aggregation](column).label(column)
+                aggregation_funcs[aggregation](getattr(RawEdge, column)).label(column)
                 for column, aggregation in aggregation_spec.items()
             ],
         ]
-
-        edges = pd.read_sql(
+        sql_statement = (
             self._cache_.query(
                 RawEdge.source,
                 RawEdge.target,
@@ -480,7 +489,13 @@ class Spider:
             )
             .where(RawEdge.iteration == self.appstate.iteration)
             .group_by(RawEdge.source, RawEdge.target, RawEdge.iteration)
-            .statement,
+            .statement
+        )
+
+        log.debug(f"Aggregation query: {sql_statement}")
+
+        edges = pd.read_sql(
+            sql_statement,
             self._cache_.connection(),
         )
         nodes = pd.read_sql(
