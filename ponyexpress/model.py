@@ -130,10 +130,7 @@ def create_aggregated_edge_table(
         name,
         Base.metadata,
         *spec_fixed,
-        *[
-            sql.Column(key, type_lookup.get(value))
-            for key, value in spec_variadic.items()
-        ],
+        *[sql.Column(key, sql.Integer) for key, value in spec_variadic.items()],
     )
 
     class AggEdge:

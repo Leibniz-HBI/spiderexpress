@@ -426,19 +426,27 @@ class Spider:
 
         log.debug("Attempting to sample the network.")
 
-        # with self._cache_.begin():
+        aggregation_spec = self.configuration.edge_agg_table["columns"]
+
+        aggregations = [
+            sql.func.count().label(  # pylint: disable=E1102 # not-callable, but it is :shrug:
+                "weight"
+            ),
+            *[
+                sql.func[aggregation](column).label(column)
+                for column, aggregation in aggregation_spec.items()
+            ],
+        ]
+
         edges = pd.read_sql(
             self._cache_.query(
                 RawEdge.source,
                 RawEdge.target,
                 RawEdge.iteration,
-                sql.func.count().label(  # pylint: disable=E1102 # not-callable, but it is :shrug:
-                    "weight"
-                ),
+                *aggregations,
             )
             .where(RawEdge.iteration == self.appstate.iteration)
             .group_by(RawEdge.source, RawEdge.target, RawEdge.iteration)
-            # .select_from(RawEdge)
             .statement,
             self._cache_.connection(),
         )
