@@ -17,7 +17,7 @@ from datetime import datetime
 from functools import partial, singledispatchmethod
 from importlib.metadata import entry_points
 from pathlib import Path
-from typing import Optional
+from typing import Optional, Union
 
 import pandas as pd
 import sqlalchemy as sql
@@ -30,6 +30,7 @@ from ponyexpress.model import (
     AppMetaData,
     Base,
     SeedList,
+    TaskList,
     create_aggregated_edge_table,
     create_node_table,
     create_raw_edge_table,
@@ -41,6 +42,8 @@ from ponyexpress.types import Configuration, Connector, PlugInSpec, Strategy
 
 CONNECTOR_GROUP = "ponyexpress.connectors"
 STRATEGY_GROUP = "ponyexpress.strategies"
+
+MAX_RETRIES = 3
 
 Node, RawEdge, AggEdge = None, None, None
 node_factory, raw_edge_factory, agg_edge_factory = None, None, None
@@ -72,7 +75,7 @@ class Spider:
         },
         {
             "name": "gathering",
-            "on_enter": ["refresh_task_buffer", "gather_node_data"],
+            "on_enter": "gather_node_data",
         },
         {
             "name": "sampling",
@@ -143,7 +146,7 @@ class Spider:
             "trigger": "stop",
             "source": "sampling",
             "dest": "stopping",
-            "conditions": "iteration_limit_reached",
+            #  "conditions": "iteration_limit_reached",
         },
     ]
     """List of transitions the spider can make."""
@@ -155,13 +158,11 @@ class Spider:
             states=Spider.states,
             initial="idle",
             transitions=Spider.transitions,
-            after_state_change="conditional_advance" if auto_transitions else None,
+            after_state_change="_conditional_advance" if auto_transitions else None,
             queued=True,
             auto_transitions=False,
         )
-
-        self.task_buffer = []
-        """List of tasks to be executed by the spider."""
+        self.retry_count = 0
 
         # set the loaded configuration to None, as it is not loaded yet
         self.configuration: Optional[Configuration] = None
@@ -169,6 +170,12 @@ class Spider:
         self.strategy: Optional[Strategy] = None
         self._cache_: Optional[orm.Session] = None
         self.appstate: Optional[AppMetaData] = None
+
+    @property
+    def task_buffer(self):
+        """Returns the task buffer, which is a list of tasks that are currently
+        being processed."""
+        return self._cache_.query(TaskList).filter(TaskList.status == "new").all()
 
     def is_gathering_done(self):
         """Checks if the gathering phase is done."""
@@ -180,7 +187,7 @@ class Spider:
         """Checks if the gathering phase is not done."""
         return not self.is_gathering_done()
 
-    def conditional_advance(self, *args) -> None:
+    def _conditional_advance(self, *args) -> None:
         """Advances the state machine when the current state is done."""
         if self.state == "idle":
             return
@@ -197,12 +204,13 @@ class Spider:
                 log.debug("Advancing from sampling to gathering")
                 self.trigger("gather")
                 return
-            if self.configuration.empty_seeds == "stop":
-                self.trigger("stop")
+            if self.may_retry():
+                self.trigger("retry")
                 return
-            log.debug("Retrying with unused seeds")
-            self.trigger("retry")
+            log.debug("Advancing from sampling to stopping.")
+            self.trigger("stop")
             return
+
         targets = self.machine.get_triggers(self.state)
 
         log.debug(f"Advancing from {self.state} and I can trigger {', '.join(targets)}")
@@ -279,6 +287,8 @@ class Spider:
 
     def close_database(self, *args) -> None:
         """Closes the database."""
+        log.info("Closing database. See you next time.")
+
         if self._cache_:
             self._cache_.commit()
             self._cache_.close()
@@ -294,17 +304,49 @@ class Spider:
         # with self._cache_.begin():
         for seed in self.configuration.seeds:
             if self._cache_.get(SeedList, seed) is None:
-                self._cache_.add(SeedList(id=seed, iteration=0, status="new"))
+                _seed = SeedList(id=seed, iteration=0, status="new")
+                self._cache_.add(_seed)
+                self._add_task(_seed)
 
-    def should_stop_not_sampling(self):
+    def _add_task(
+        self, task: Union[SeedList, Node, str], parent: Optional[TaskList] = None
+    ):
+        """Adds a task to the task buffer."""
+        if not self._cache_:
+            raise ValueError("Cache is not present.")
+        if not isinstance(task, (SeedList, Node, str)):
+            raise ValueError("Task must be a seed, a node or a node-identifier.")
+
+        node_id = (
+            task.name
+            if isinstance(task, Node)
+            else task
+            if isinstance(task, str)
+            else task.id
+        )
+
+        if self._cache_.execute(
+            sql.select(TaskList).where(TaskList.node_id == node_id).limit(1)
+        ).scalar():
+            return
+
+        new_task = TaskList(
+            node_id=node_id,
+            status="new",
+            initiated_at=datetime.now(),
+            connector="stub_value",
+            parent_task_id=parent.id if parent else None,
+        )
+        self._cache_.add(new_task)
+        self._cache_.commit()
+
+    def should_not_stop_sampling(self):
         """Checks if the sampling phase should be stopped.
 
         Sampling will be indicated to stop if there are no new seeds in the database.
         """
         if not self._cache_:
             raise ValueError("Cache is not present.")
-
-        log.debug("Checking if sampling should be stopped.")
 
         count = (
             self._cache_.query(SeedList)
@@ -315,14 +357,18 @@ class Spider:
             .count()
         )
 
-        return count == 0
+        log.debug(f"{count} seeds in the data set, should stop or retry sampling.")
+
+        return count > 0
 
     def should_retry(self):
         """Checks if the sampling phase should be retried."""
         if not self._cache_:
             raise ValueError("Cache is not present.")
 
-        return self.configuration.empty_seeds != "stop"
+        return (
+            self.configuration.empty_seeds != "stop" and self.retry_count < MAX_RETRIES
+        )
 
     def retry_with_unused_seeds(self):
         """Retries the sampling phase with unused seeds."""
@@ -333,43 +379,24 @@ class Spider:
             self._cache_.execute(sql.select(SeedList.id)).scalars().all()
         )
 
-        log.debug(f"Retrying with unused seeds: {', '}.join(candidate_nodes_names)")
-
         candidates = (
-            self._cache_.query(Node)
-            .filter(
-                Node.name.notin_(candidate_nodes_names),
+            self._cache_.execute(
+                sql.select(Node.name).where(Node.name.not_in(candidate_nodes_names))
             )
+            .scalars()
             .all()
         )
 
+        self.retry_count += 1
         self._cache_.add_all(
             [
-                SeedList(
-                    id=seed.name, iteration=self.appstate.iteration + 1, status="new"
-                )
+                SeedList(id=seed, iteration=self.appstate.iteration + 1, status="new")
                 for seed in candidates
             ]
         )
 
-    def refresh_task_buffer(self):
-        """Refreshes the task buffer."""
-        if not self._cache_:
-            raise ValueError("Cache is not present.")
-
-        log.debug("Refreshing task buffer.")
-
-        self.task_buffer.extend(
-            [
-                task.id
-                for task in self._cache_.query(SeedList)
-                .filter(
-                    SeedList.iteration == self.appstate.iteration,
-                    SeedList.status == "new",
-                )
-                .all()
-                if task.id not in self.task_buffer
-            ]
+        log.debug(
+            f"{self.retry_count} retry with unused seeds: {', '.join(candidates)}"
         )
 
     def increment_iteration(self):
@@ -391,22 +418,24 @@ class Spider:
         if len(self.task_buffer) == 0:
             return
 
-        node = self.task_buffer.pop(0)
-        log.debug(f"Attempting to gather data for {node}.")
+        task: TaskList = self.task_buffer.pop(0)
+        log.debug(f"Attempting to gather data for {task.node_id}.")
 
         # Begin transaction with the cache
-        # with self._cache_.begin():
-        node_info = self._cache_.get(Node, node)
+        node_info = self._cache_.get(Node, task.node_id)
 
         if node_info is None:
-            self._dispatch_connector_for_node_(node)
+            self._dispatch_connector_for_node_(task)
 
         # Mark the node as done
-        seed = self._cache_.get(SeedList, node)
+        seed = self._cache_.get(SeedList, task.node_id)
+
         if seed is not None:
             seed.status = "done"
             seed.last_crawled_at = datetime.now()
-            self._cache_.commit()
+        task.status = "done"
+        task.finished_at = datetime.now()
+        self._cache_.commit()
 
     def iteration_limit_not_reached(self):
         """Checks if the iteration limit has been reached."""
@@ -414,6 +443,10 @@ class Spider:
             raise ValueError("No configuration loaded.")
 
         return self.appstate.iteration < self.configuration.max_iteration
+
+    def iteration_limit_reached(self):
+        """Checks if the iteration limit has been reached."""
+        return not self.iteration_limit_not_reached()
 
     def sample_network(self):
         """Samples the network."""
@@ -459,16 +492,18 @@ class Spider:
 
         if len(new_seeds) == 0:
             log.warning("Found no new seeds.")
+        elif self.retry_count > 0:
+            self.retry_count = 0
 
         for seed in new_seeds:
             if seed is None:
                 continue
             if self._cache_.get(SeedList, seed) is None:
-                self._cache_.add(
-                    SeedList(
-                        id=seed, iteration=self.appstate.iteration + 1, status="new"
-                    )
+                _seed = SeedList(
+                    id=seed, iteration=self.appstate.iteration + 1, status="new"
                 )
+                self._cache_.add(_seed)
+                self._add_task(_seed)
         self._cache_.add_all(
             [
                 agg_edge_factory(edge)
@@ -508,24 +543,34 @@ class Spider:
 
     # section: private methods
 
-    def _dispatch_connector_for_node_(self, node: str):
+    def _dispatch_connector_for_node_(self, node: TaskList):
         if not self.configuration or not self.connector:
             raise ValueError("Configuration or Connector are not present")
 
-        edges, nodes = self.connector([node])
+        edges, nodes = self.connector([node.node_id])
 
         log.debug(f"edges:\n{edges}\n\nnodes:{nodes}\n")
 
         if len(edges) > 0:
             log.info(
-                f"Persisting {len(edges)} for node {node} in iteration #{self.appstate.iteration}."
+                f"""Persisting {
+                    len(edges)
+                } edges for node {
+                    node.node_id
+                } in iteration
+                #{
+                    self.appstate.iteration
+                }."""
             )
             edges["iteration"] = self.appstate.iteration
             self._cache_.add_all(
                 [raw_edge_factory(edge) for edge in edges.to_dict(orient="records")]
             )
-            if self.configuration.eager is True:
-                self.task_buffer.extend(edges["target"].unique().tolist())
+            if self.configuration.eager is True and node.parent_task_id is None:
+                #  We add only new task if the parent_task_id is None to avoid snowballing
+                #  the entire population before we even begin sampling.
+                for target in edges["target"].unique().tolist():
+                    self._add_task(target, parent=node)
             self._cache_.commit()
         if len(nodes) > 0:
             nodes["iteration"] = self.appstate.iteration
