@@ -16,11 +16,11 @@ A multipurpose network sampling tool.
     * [create](#create)
     * [start](#start)
     * [Project set up](#project-set-up)
-  * [Operation Instructions](#operation-instructions)
   * [Configuration](#configuration)
   * [Table Schemas](#table-schemas)
     * [Nodes](#nodes)
     * [Edges](#edges)
+  * [Operation Instructions](#operation-instructions)
   * [Included Connectors](#included-connectors)
     * [CSV connector](#csv-connector)
     * [Telegram connector](#telegram-connector)
@@ -83,6 +83,9 @@ Commands:
 
 ### create
 
+This command creates a `ponyexpress` project in the current directory.
+By default, the project creation process will be interactive, but this can be disabled by passing the `--non-interactive` flag.
+
 ```bash
 Usage: ponyexpress create [OPTIONS] CONFIG
 
@@ -94,6 +97,8 @@ Options:
 
 ### start
 
+This command starts a `ponyexpress` job with the given configuration file.
+
 ```bash
 Usage: ponyexpress start [OPTIONS] CONFIG
 
@@ -104,42 +109,22 @@ Options:
 ```
 ### Project set up
 
-A `ponyexpress` project will need the following files in place in the project directory (here exemplary named `my_project`), whereas the SQLITE-database will be created if it not exists.
+A `ponyexpress` project could for example look like this:
 
 ```tree
-my_project/
-|- my_project.sqlite
-|- my_project.pe.yml
-|- seed_file.txt
+├── my_project
+│   ├── my_project.pe.yml
+│   ├── my_project.db
+│   └── seed_file.txt
 ```
 
-Whereas `my_project.sqlite` is the resulting database, `my_project.pe.yml` is the project's configuration in which a data source and sampling strategy and other parameters may be specified (see [Configuration](#configuration) for further details). `seed_file.txt` is a text file which contains one node name per line.
+Whereas `my_project.db` is the resulting database, `my_project.pe.yml` is the project's configuration in which a data source and sampling strategy and other parameters may be specified (see [Configuration](#configuration) for further details) and `seed_file.txt` is a text file which contains one node name per line.
 
-## Operation Instructions
-
-
-```mermaid
-stateDiagram-v2
-    gathering: gathering node data for the first node in queue
-    sampling : sampling aggregated edges in iteration
-    retrying : retrying finding seeds
-
-    [*] --> idle
-    idle --> starting : load_config()
-    starting --> gathering : initialize_seeds()
-    gathering --> gathering
-    gathering --> sampling
-    sampling --> gathering : increment_iteration()
-    sampling --> retrying
-    retrying --> gathering : increment_iteration()
-    sampling --> stopping
-    stopping --> [*]
-
-```
+For example projects, please refer to the `examples` directory or the unit tests in [/tests/](/tests/).
 
 ## Configuration
 
-`Ponyexpress` utilizes YAML de-/serialization for it's configuration file. As such, initializing a project is as easy as: running `$ ponyexpress create` and a pleasureable and comforting dialogue prompt will guide you through the process.
+`Ponyexpress` utilizes YAML de-/serialization for its configuration file. As such, initializing a project is as easy as: running `$ ponyexpress create` and a pleasureable and comforting dialogue prompt will guide you through the process.
 
 The resulting file could look like something like this example:
 
@@ -274,6 +259,28 @@ Which columns are persisted is determined by the configuration as well as the da
 | weight      | number of multi-edges between the two nodes          |
 | ...         | optionally additional data coming from the connector |
 
+## Operation Instructions
+
+
+```mermaid
+stateDiagram-v2
+    gathering: gathering node data for the first node in queue
+    sampling : sampling aggregated edges in iteration
+    retrying : retrying finding seeds
+
+    [*] --> idle
+    idle --> starting : load_config()
+    starting --> gathering : initialize_seeds()
+    gathering --> gathering
+    gathering --> sampling
+    sampling --> gathering : increment_iteration()
+    sampling --> retrying
+    retrying --> gathering : increment_iteration()
+    sampling --> stopping
+    stopping --> [*]
+
+```
+
 ## Included Connectors
 
 ### CSV connector
@@ -404,62 +411,107 @@ def random_strategy(
     new_nodes = nodes.loc[nodes.name.isin(new_seeds), :]
 
     return new_seeds, edges_to_add, new_nodes
-
 ```
 
 ### Example 2: a nice connector
 
-To further illustrate the process we consider a implementation of a connector that reads data from a CSV file.
-Here we assume that the CSV file contains the following columns:
+To further illustrate the process we consider a implementation of a connector that reads data from a CSV file. The connector is designed to read data from a CSV file that contains a list of edges and (optionally) a list of nodes. The CSVConnectorConfiguration class defines the configuration options for the connector, including the location of the edge list CSV file, the mode of operation (in, out, or both), and the optional location of the node list CSV file.
+
+The `csv_connector()` function takes two arguments: a list of node IDs and the configuration options. The function then reads in the edge list CSV file and (optionally) the node list CSV file using the Pandas library. Based on the mode of operation specified in the configuration options, the function filters the edge list to return only those edges that are connected to the specified nodes. If a node list CSV file is provided, the function also filters the node list to return only those nodes that are connected to the specified edges. The function then returns two Pandas dataframes, one containing the filtered edge list and the other containing the filtered node list (if provided).
+
+1. The function takes two arguments: node_ids (a list of node IDs) and configuration (either a dictionary or an instance of CSVConnectorConfiguration class).
 
 ```python
-"""A CSV-reading, network-rippin' connector for your testing purposes."""
-import dataclasses
-from typing import Dict, List, Optional, Union
+def csv_connector(
+    node_ids: List[str], configuration: Dict
+) -> (pd.DataFrame, pd.DataFrame):
+```
+
+2. The function reads in the edge list CSV file using the Pandas read_csv() function and stores the resulting dataframe in a variable called edges. The dtype=str argument specifies that all columns should be read in as strings.
+
+```python
+edges = pd.read_csv(configuration["edge_list_location"], dtype=str)
+```
+
+3. If a node list CSV file location is provided in the configuration options, the function reads in the node list CSV file using the Pandas read_csv() function and stores the resulting dataframe in a variable called nodes. The dtype=str argument specifies that all columns should be read in as strings. If no node list CSV file location is provided, the nodes variable is set to None.
+
+```python
+nodes = (
+    pd.read_csv(configuration["node_list_location"], dtype=str)
+    if configuration["node_list_location"]
+    else None
+)
+```
+
+4. Based on the mode specified in the configuration options, the function creates a boolean mask that filters the edges dataframe to only include edges that are connected to the specified nodes. If mode is set to "in", the function filters for edges with a target node that is in node_ids. If mode is set to "out", the function filters for edges with a source node that is in node_ids. If mode is set to "both", the function filters for edges that are connected to nodes in node_ids in either direction (i.e., the edges have a source or target node that is in node_ids).
+
+```python
+if configuration["mode"] == "in":
+    mask = edges["target"].isin(node_ids)
+elif configuration["mode"] == "out":
+    mask = edges["source"].isin(node_ids)
+elif configuration["mode"] == "both":
+    mask = edges["target"].isin(node_ids) | edges["source"].isin(node_ids)
+else:
+    raise ValueError(f"{configuration["mode"]} is not one of 'in', 'out' or 'both'.")
+```
+
+5. The function creates a new dataframe called edge_return that contains only the rows of the edges dataframe that are specified by the boolean mask.
+
+```python
+edge_return: pd.DataFrame = edges.loc[mask]
+```
+
+6. Finally, the function returns a tuple containing two dataframes: edge_return (the filtered edge list) and `nodes.loc[nodes.name.isin(node_ids), :]` (the filtered node list, if a node list CSV file location was provided in the configuration options and there are nodes connected to the filtered edges). If no node list CSV file location was provided or there are no nodes connected to the filtered edges, the function returns an empty dataframe for nodes.
+
+```python
+return (
+    edge_return,
+    nodes.loc[nodes.name.isin(node_ids), :]
+    if nodes is not None
+    else pd.DataFrame(),
+)
+```
+
+And now: all together now! A complete implementation of the CSV connector is shown below; a more involved implementation is provided in the `csv_connector.py` file in the [connectors directory](ponyexpress/connectors).
+
+```python
+from typing import Dict, List
 
 import pandas as pd
 
-from ponyexpress.types import fromdict
-
-
-@dataclasses.dataclass
-class CSVConnectorConfiguration:
-    """Configuration items for the csv_connector."""
-
-    edge_list_location: str
-    mode: str
-    node_list_location: Optional[str] = None
-
 
 def csv_connector(
-    node_ids: List[str], configuration: Union[Dict, CSVConnectorConfiguration]
+    node_ids: List[str], configuration: Dict
 ) -> (pd.DataFrame, pd.DataFrame):
     """The CSV connector!"""
-    if isinstance(configuration, dict):
-        configuration = fromdict(CSVConnectorConfiguration, configuration)
 
-    edges = pd.read_csv(configuration.edge_list_location, dtype=str)
+    # Read the edge table.
+    edges = pd.read_csv(configuration["edge_list_location"], dtype=str)
+    # Read the node table if provided.
     nodes = (
-        pd.read_csv(configuration.node_list_location, dtype=str)
-        if configuration.node_list_location
+        pd.read_csv(configuration["node_list_location"], dtype=str)
+        if configuration["node_list_location"]
         else None
     )
-    if configuration.mode == "in":
+
+    # Filter edges based on the mode of operation.
+    if configuration["mode"] == "in":
         mask = edges["target"].isin(node_ids)
-    elif configuration.mode == "out":
+    elif configuration["mode"] == "out":
         mask = edges["source"].isin(node_ids)
-    elif configuration.mode == "both":
+    elif configuration["mode"] == "both":
         mask = edges["target"].isin(node_ids) | edges["source"].isin(node_ids)
     else:
-        raise ValueError(f"{configuration.mode} is not one of 'in', 'out' or 'both'.")
+        raise ValueError(f"{configuration['mode']} is not one of 'in', 'out' or 'both'.")
 
     # Filter edges that contain our input nodes
     edge_return: pd.DataFrame = edges.loc[mask]
 
     return (
-        edge_return,
-        nodes.loc[nodes.name.isin(node_ids), :]
-        if nodes is not None
+        edge_return,  # return the filtered edges
+        nodes.loc[nodes.name.isin(node_ids), :]  # return the filtered nodes
+        if nodes is not None                     # if there are nodes
         else pd.DataFrame(),
     )
 ```
