@@ -1,8 +1,108 @@
 # ponyexpress
 
-A multi-purpose network sampling tool.
+A multipurpose network sampling tool.
 
-## Project set up
+![Image of Ponyexpress](assets/ponyexpress.jpeg)
+
+>   Traversing the deserts of the internet.
+
+## Table of Contents
+
+<!-- TOC -->
+* [ponyexpress](#ponyexpress)
+  * [Table of Contents](#table-of-contents)
+  * [Installation](#installation)
+  * [Usage](#usage)
+    * [create](#create)
+    * [start](#start)
+    * [Project set up](#project-set-up)
+  * [Operation Instructions](#operation-instructions)
+  * [Configuration](#configuration)
+  * [Table Schemas](#table-schemas)
+    * [Nodes](#nodes)
+    * [Edges](#edges)
+  * [Included Connectors](#included-connectors)
+    * [CSV connector](#csv-connector)
+    * [Telegram connector](#telegram-connector)
+  * [Extending Ponyexpress](#extending-ponyexpress)
+    * [Connector Specification](#connector-specification)
+    * [Strategy Specification](#strategy-specification)
+    * [Additional Parameters and Configurability](#additional-parameters-and-configurability)
+    * [Example 1: a sweet and simple strategy](#example-1--a-sweet-and-simple-strategy)
+    * [Example 2: a nice connector](#example-2--a-nice-connector)
+<!-- TOC -->
+
+## Installation
+
+In order to use `ponyexpress` you need to have Python 3.8 or higher and poetry installed on your system.
+
+1. Clone the repository
+
+```bash
+$ git clone https://github.com/Leibniz-HBI/ponyexpress.git
+```
+
+2. Install the dependencies
+
+```bash
+$ cd ponyexpress
+$ poetry install
+```
+
+3. Activate the virtual environment
+
+```bash
+$ poetry shell
+```
+
+4. Run the CLI
+
+```bash
+$ ponyexpress --help
+```
+
+In the future we will provide a PyPI package which will make the installation process much easier.
+
+## Usage
+
+
+
+```bash
+$ ponyexpress --help
+Usage: ponyexpress [OPTIONS] COMMAND [ARGS]...
+
+  Traverse the deserts of the internet.
+
+Options:
+  --help  Show this message and exit.
+
+Commands:
+  create  create a new configuration
+  start   start a job
+```
+
+### create
+
+```bash
+Usage: ponyexpress create [OPTIONS] CONFIG
+
+  create a new configuration
+
+Options:
+  --interactive / --non-interactive
+```
+
+### start
+
+```bash
+Usage: ponyexpress start [OPTIONS] CONFIG
+
+  start a job
+
+Options:
+  --help  Show this message and exit.
+```
+### Project set up
 
 A `ponyexpress` project will need the following files in place in the project directory (here exemplary named `my_project`), whereas the SQLITE-database will be created if it not exists.
 
@@ -14,6 +114,28 @@ my_project/
 ```
 
 Whereas `my_project.sqlite` is the resulting database, `my_project.pe.yml` is the project's configuration in which a data source and sampling strategy and other parameters may be specified (see [Configuration](#configuration) for further details). `seed_file.txt` is a text file which contains one node name per line.
+
+## Operation Instructions
+
+
+```mermaid
+stateDiagram-v2
+    gathering: gathering node data for the first node in queue
+    sampling : sampling aggregated edges in iteration
+    retrying : retrying finding seeds
+
+    [*] --> idle
+    idle --> starting : load_config()
+    starting --> gathering : initialize_seeds()
+    gathering --> gathering
+    gathering --> sampling
+    sampling --> gathering : increment_iteration()
+    sampling --> retrying
+    retrying --> gathering : increment_iteration()
+    sampling --> stopping
+    stopping --> [*]
+
+```
 
 ## Configuration
 
@@ -51,6 +173,65 @@ strategy:
 
 ## Table Schemas
 
+How the tables are structured is determined by the configuration file.
+The following sections describe the minimal configuration for the tables as well as the configuration syntax.
+
+Both tables are created if they do not exist; the name of the tables are determined by the configuration file.
+For example, consider the following configuration snippet:
+
+```yaml
+edge_raw_table:
+  name: tg_edges_raw
+  columns:
+    post_id: Text
+    datetime: Text
+    views: Integer
+    text: Text
+    forwarded_message_url: Text
+```
+
+This will create a table named `tg_edges_raw`, under `columns` column names and their types are specified.
+Allowed types are `Text`, `Integer`.
+
+
+> **Note**
+> Column names are used to get data from the connector, thus,
+> they must be present in the connector's output – otherwise they will contain `None`-values.
+
+
+```mermaid
+erDiagram
+  NODE ||--|{ EDGE_RAW : targets
+  NODE ||--|{ EDGE_RAW : originates
+  NODE ||--|| SEEDS : tracks
+  EDGE_AGG ||--|{ EDGE_RAW : aggregates
+  APP_STATE ||-- |{ SEEDS : numbers
+  EDGE_RAW {
+    string source "source node identifier"
+    string target "target node identifier"
+    any more-columns "many more columns if you like"
+  }
+  EDGE_AGG {
+    string source PK "source node identifier"
+    string target PK "target node identifier"
+   integer weight "number of edges between both nodes in `edges_dense`"
+  }
+  NODE {
+    string node_id "node identifier"
+    integer degree
+  }
+  APP_STATE {
+    integer iteration
+    integer max_iteration
+  }
+  SEEDS {
+    string node_id "seed's node identifier"
+    integer iteration "seed's iteration identifier"
+    datetime visited_at "when the node was visited"
+    string status "has the node been processed?"
+  }
+```
+
 ### Nodes
 
 The nodes of the network are kept in two tables that adhere to the same schema:
@@ -63,24 +244,35 @@ although more metadata can be stored in the table.
 | Column Name | Description                                         |
 | ----------- | --------------------------------------------------- |
 | name        | node identifier                                     |
-| degree      | node's degree                                       |
-| in_degree   | node's in degree                                    |
-| out_degree  | node's out degree                                   |
 | ...         | optionally additional data coming from the connector |
 
 ### Edges
 
-The edges of the network are kept in two tables that adhere to the same schema:
-*sparse_edges* and *dense_edges*, whereas in the sparse table only sampled edges are
-persisted and the dense table includes all edges ponyexpress collected in the process.
+The edges of the network are kept in two tables: *edges_raw* and *edges_agg*,
+whereas in the aggregated table only sampled edges are persisted and the raw table
+includes all edges ponyexpress collected in the process.
 
-The following table informs about the minimally necessary columns it will create, although more meta data can be stored in the table.
+The following table informs about the minimally necessary columns it will create,
+although more metadata can be stored in the table.
 
-| Column Name | Description                                 |
-| ----------- | ------------------------------------------- |
-| source      | source node name                            |
-| target      | target node name                            |
-| weight      | number of multi-edges between the two nodes |
+**Raw Edges**: The raw edges table contains all edges that were collected by the connector.
+Which columns are persisted is determined by the configuration as well as the data coming from the connector.
+
+
+| Column Name | Description                                          |
+|-------------|------------------------------------------------------|
+| source      | source node name                                     |
+| target      | target node name                                     |
+| ...         | optionally additional data coming from the connector |
+
+**Aggregated Edges**
+
+| Column Name | Description                                          |
+|-------------|------------------------------------------------------|
+| source      | source node name                                     |
+| target      | target node name                                     |
+| weight      | number of multi-edges between the two nodes          |
+| ...         | optionally additional data coming from the connector |
 
 ## Included Connectors
 
@@ -110,6 +302,15 @@ connector:
 > **Note**
 > In the current implementation the tables are reread on each call of the connector, thus,
 > loading large networks will lead to long loading times.
+
+### Telegram connector
+
+This connector scrapes network data from public Telegram channels.
+Currently, it returns forwarded messages for the last 20 messages per channel.
+
+> **Note**: No configuration can be supplied at this time. Although an overhaul is on the roadmap.
+
+----
 
 ## Extending Ponyexpress
 
@@ -161,41 +362,107 @@ E.g. if a configuration file states:
 
 ```yaml
 strategy:
-    layer_max_size: 15
+  random:
+    n: 15
 ```
 
-will result in the following function call `Strategy(edges, nodes, known_nodes, layer_max_size = 15)`.
+will result in the following function call `random(edges, nodes, known_nodes, {"n": 15})` at the sampling stage.
 
 ### Example 1: a sweet and simple strategy
 
-To futher illustrate the process we consider a implementation of random sampling,
+To further illustrate the process we consider a implementation of random sampling,
 here our strategy is to select 10 random nodes for each layer:
 
 ```python
+from typing import Any, Dict, List
 
-def random_sampler(edges: DataFrame, nodes: DataFrame, known_nodes: List[str]):
-  # split the edges table into edges _inside_ and _outside_ of the known network
-  mask = edges.target.isin(known_nodes)
-  edges_inward  = edges.loc[mask,:]
-  edges_outward = edges.loc[~mask, :]
-  # select 10 edges to follow
-  edges_sampled = edges_outward.sample(n=10, replace=False)
+import pandas as pd
 
-  new_seeds = edges_sampled.target  # select target node names as seeds for the
-  # next layer
-  edges_to_add = pd.concat(edges_inward, edges_sampled)  # add edges inside the
-  # known network as well as the sampled edges to the known network
-  new_nodes = nodes.loc[nodes.name.isin(new_seeds), :]
-  return new_seeds, edges_to_add, new_nodes
+
+def random_strategy(
+    edges: pd.DataFrame,
+    nodes: pd.DataFrame,
+    known_nodes: List[str],
+    configuration: Dict[str, Any],
+):
+    """Random sampling strategy."""
+    # split the edges table into edges _inside_ and _outside_ of the known network
+    mask = edges.target.isin(known_nodes)
+    edges_inward = edges.loc[mask, :]
+    edges_outward = edges.loc[~mask, :]
+
+    # select 10 edges to follow
+    if len(edges_outward) < configuration["n"]:
+        edges_sampled = edges_outward
+    else:
+        edges_sampled = edges_outward.sample(n=configuration["n"], replace=False)
+
+    new_seeds = edges_sampled.target  # select target node names as seeds for the
+    # next layer
+    edges_to_add = pd.concat([edges_inward, edges_sampled])  # add edges inside the
+    # known network as well as the sampled edges to the known network
+    new_nodes = nodes.loc[nodes.name.isin(new_seeds), :]
+
+    return new_seeds, edges_to_add, new_nodes
+
 ```
 
-## Developer Install
+### Example 2: a nice connector
 
-- Install poetry
-- Clone repository
-- In the cloned repository's root directory run poetry install
-- Run poetry shell to start development virtualenv
-- Run pytest to run all tests
+To further illustrate the process we consider a implementation of a connector that reads data from a CSV file.
+Here we assume that the CSV file contains the following columns:
+
+```python
+"""A CSV-reading, network-rippin' connector for your testing purposes."""
+import dataclasses
+from typing import Dict, List, Optional, Union
+
+import pandas as pd
+
+from ponyexpress.types import fromdict
+
+
+@dataclasses.dataclass
+class CSVConnectorConfiguration:
+    """Configuration items for the csv_connector."""
+
+    edge_list_location: str
+    mode: str
+    node_list_location: Optional[str] = None
+
+
+def csv_connector(
+    node_ids: List[str], configuration: Union[Dict, CSVConnectorConfiguration]
+) -> (pd.DataFrame, pd.DataFrame):
+    """The CSV connector!"""
+    if isinstance(configuration, dict):
+        configuration = fromdict(CSVConnectorConfiguration, configuration)
+
+    edges = pd.read_csv(configuration.edge_list_location, dtype=str)
+    nodes = (
+        pd.read_csv(configuration.node_list_location, dtype=str)
+        if configuration.node_list_location
+        else None
+    )
+    if configuration.mode == "in":
+        mask = edges["target"].isin(node_ids)
+    elif configuration.mode == "out":
+        mask = edges["source"].isin(node_ids)
+    elif configuration.mode == "both":
+        mask = edges["target"].isin(node_ids) | edges["source"].isin(node_ids)
+    else:
+        raise ValueError(f"{configuration.mode} is not one of 'in', 'out' or 'both'.")
+
+    # Filter edges that contain our input nodes
+    edge_return: pd.DataFrame = edges.loc[mask]
+
+    return (
+        edge_return,
+        nodes.loc[nodes.name.isin(node_ids), :]
+        if nodes is not None
+        else pd.DataFrame(),
+    )
+```
 
 ---
 
