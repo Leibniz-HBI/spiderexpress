@@ -18,12 +18,17 @@ A multipurpose network sampling tool.
     * [Project set up](#project-set-up)
   * [Configuration](#configuration)
   * [Table Schemas](#table-schemas)
-    * [Nodes](#nodes)
     * [Edges](#edges)
+      * [Raw Edges](#raw-edges)
+      * [Aggregated Edges](#aggregated-edges)
+    * [Nodes](#nodes)
   * [Operation Instructions](#operation-instructions)
   * [Included Connectors](#included-connectors)
     * [CSV connector](#csv-connector)
     * [Telegram connector](#telegram-connector)
+  * [Included Strategies](#included-strategies)
+    * [Spikyball Sampler](#spikyball-sampler)
+    * [Random Sampler](#random-sampler)
   * [Extending Ponyexpress](#extending-ponyexpress)
     * [Connector Specification](#connector-specification)
     * [Strategy Specification](#strategy-specification)
@@ -36,30 +41,10 @@ A multipurpose network sampling tool.
 
 In order to use `ponyexpress` you need to have Python 3.8 or higher and poetry installed on your system.
 
-1. Clone the repository
-
-```bash
-$ git clone https://github.com/Leibniz-HBI/ponyexpress.git
-```
-
-2. Install the dependencies
-
-```bash
-$ cd ponyexpress
-$ poetry install
-```
-
-3. Activate the virtual environment
-
-```bash
-$ poetry shell
-```
-
-4. Run the CLI
-
-```bash
-$ ponyexpress --help
-```
+1. Clone the repository `git clone https://github.com/Leibniz-HBI/ponyexpress.git`.
+2. Install the dependencies `cd ponyexpress` and `poetry install`.
+3. Activate the virtual environment `poetry shell`
+4. Run the CLI `ponyexpress --help`.
 
 In the future we will provide a PyPI package which will make the installation process much easier.
 
@@ -124,7 +109,7 @@ For example projects, please refer to the `examples` directory or the unit tests
 
 ## Configuration
 
-`Ponyexpress` utilizes YAML de-/serialization for its configuration file. As such, initializing a project is as easy as: running `$ ponyexpress create` and a pleasureable and comforting dialogue prompt will guide you through the process.
+`Ponyexpress` utilizes YAML de-/serialization for its configuration file. As such, initializing a project is as easy as: running `$ ponyexpress create` and a pleasurable and comforting dialogue prompt will guide you through the process.
 
 The resulting file could look like something like this example:
 
@@ -217,20 +202,6 @@ erDiagram
   }
 ```
 
-### Nodes
-
-The nodes of the network are kept in two tables that adhere to the same schema:
-*sparse_nodes* and *dense_nodes*, whereas in the sparse table only sampled nodes are
-persisted and the dense table includes all nodes ponyexpress collected in the process.
-
-The following table informs about the minimally necessary columns it will create,
-although more metadata can be stored in the table.
-
-| Column Name | Description                                         |
-| ----------- | --------------------------------------------------- |
-| name        | node identifier                                     |
-| ...         | optionally additional data coming from the connector |
-
 ### Edges
 
 The edges of the network are kept in two tables: *edges_raw* and *edges_agg*,
@@ -240,24 +211,58 @@ includes all edges ponyexpress collected in the process.
 The following table informs about the minimally necessary columns it will create,
 although more metadata can be stored in the table.
 
-**Raw Edges**: The raw edges table contains all edges that were collected by the connector.
+#### Raw Edges
+
+The raw edges table contains all edges that were collected by the connector.
 Which columns are persisted is determined by the configuration as well as the data coming from the connector.
 
+| **Column Name** | **Description**                                      |
+|-----------------|------------------------------------------------------|
+| **source**      | source node name                                     |
+| **target**      | target node name                                     |
+| **...**         | optionally additional data coming from the connector |
 
-| Column Name | Description                                          |
-|-------------|------------------------------------------------------|
-| source      | source node name                                     |
-| target      | target node name                                     |
-| ...         | optionally additional data coming from the connector |
+Columns are specified as key-value-pairs, available data types are `Text` and `Integer`.
+```yaml
+edge_raw_table:
+  name: tg_edges_raw
+  columns:
+    post_id: Text
+    datetime: Text
+    views: Integer
+    text: Text
+    forwarded_message_url: Text
+```
 
-**Aggregated Edges**
+#### Aggregated Edges
 
-| Column Name | Description                                          |
-|-------------|------------------------------------------------------|
-| source      | source node name                                     |
-| target      | target node name                                     |
-| weight      | number of multi-edges between the two nodes          |
-| ...         | optionally additional data coming from the connector |
+As the name suggests in this the aggregated, simple edges are kept and persisted after sampling.
+The following table informs about the minimally available columns `ponyexpress` will create.
+
+| **Column Name** | **Description**                             |
+|-----------------|---------------------------------------------|
+| **source**      | source node name                            |
+| **target**      | target node name                            |
+| **weight**      | number of multi-edges between the two nodes |
+| **...**         | optionally additional data                  |
+
+The aggregation can be specified in the configuration file, again with key-value-pairs specifying the column name and the aggregation function. Available aggregation functions are `sum`, `min`, `max`, `avg` and `count`. **Note**: only numeric columns may be aggregated and used in the sampler configuration.
+
+```yaml
+edge_agg_table:
+  name: tg_edges_agg
+  columns:
+    views: sum
+```
+
+### Nodes
+
+The nodes of the network are kept a `node`-table. The following table informs about the minimally necessary columns it will create, although more metadata can be stored in the table, similarly to the specification under [Raw Edges](#raw-edges).
+
+| **Column Name** | **Description**                                      |
+|-----------------|------------------------------------------------------|
+| **name**        | node identifier                                      |
+| **...**         | optionally additional data coming from the connector |
 
 ## Operation Instructions
 
@@ -317,6 +322,52 @@ Currently, it returns forwarded messages for the last 20 messages per channel.
 
 > **Note**: No configuration can be supplied at this time. Although an overhaul is on the roadmap.
 
+## Included Strategies
+
+### Spikyball Sampler
+
+This strategy samples implements a weighted random sampling of the network's edges, whereas the variables to utilize for the weighting can be specified in the configuration file.
+
+```yaml
+spikyball:
+    layer_max_size: 150
+    sampler:
+      source_node_probability:
+        coefficient: 1
+        weights:
+          subscriber_count: 4
+          videos_count: 1
+      target_node_probability:
+        coefficient: 1
+        weights:
+      edge_probability:
+        coefficient: 1
+        weights:
+          views: 1
+```
+
+The following table informs about the configuration keys and their meaning:
+
+| Key                                 | Description                                                                       |
+|-------------------------------------|-----------------------------------------------------------------------------------|
+| **layer_max_size**                  | maximum number of nodes to sample in one iteration                                |
+| **source_node_probability**         | probability of sampling a source node                                             |
+| **target_node_probability.weights** | column names in the node table and the weight it should be assigned to            |
+| **edge_probability**                | probability of sampling an edge                                                   |
+| **\*.weights**                      | column names in the aggregated edge table and the weight it should be assigned to |
+| **\*.coefficient**                  | coefficient to multiply the probability with                                      |
+
+Specified columns must be present in the node and edge tables, and thus, must be specified in the configuration file as well.
+See the [configuration](#configuration) section for more information on where to specify which data columns should be included in both the node table and the aggregation specification for the aggregated edge table.
+
+### Random Sampler
+
+This strategy samples implements a random sampling of the network's edges (and it's implementation is shown [below](#example-2--a-nice-connector)). The configuration is simple and only requires the following key-value-pair:
+
+| **Key** | **Description**                                    |
+|---------|----------------------------------------------------|
+| **n**   | maximum number of nodes to sample in one iteration |
+
 ----
 
 ## Extending Ponyexpress
@@ -328,7 +379,7 @@ Currently, it returns forwarded messages for the last 20 messages per channel.
 
 ### Connector Specification
 
-The idea of a `Connector` is to deliver *new* information of the network to be explored. The function takes a `List[str]` which is a list of node names for which we need information about and it returns two dataframes, the edges and the node information.
+The idea of a `Connector` is to deliver *new* information of the network to be explored. The function takes a `List[str]` which is a list of node names for which we need information about, and it returns two dataframes, the edges and the node information.
 All Connectors must implement the following function interface:
 
 ```python
@@ -377,7 +428,7 @@ will result in the following function call `random(edges, nodes, known_nodes, {"
 
 ### Example 1: a sweet and simple strategy
 
-To further illustrate the process we consider a implementation of random sampling,
+To further illustrate the process we consider an implementation of random sampling,
 here our strategy is to select 10 random nodes for each layer:
 
 ```python
@@ -415,7 +466,7 @@ def random_strategy(
 
 ### Example 2: a nice connector
 
-To further illustrate the process we consider a implementation of a connector that reads data from a CSV file. The connector is designed to read data from a CSV file that contains a list of edges and (optionally) a list of nodes. The CSVConnectorConfiguration class defines the configuration options for the connector, including the location of the edge list CSV file, the mode of operation (in, out, or both), and the optional location of the node list CSV file.
+To further illustrate the process we consider an implementation of a connector that reads data from a CSV file. The connector is designed to read data from a CSV file that contains a list of edges and (optionally) a list of nodes. The CSVConnectorConfiguration class defines the configuration options for the connector, including the location of the edge list CSV file, the mode of operation (in, out, or both), and the optional location of the node list CSV file.
 
 The `csv_connector()` function takes two arguments: a list of node IDs and the configuration options. The function then reads in the edge list CSV file and (optionally) the node list CSV file using the Pandas library. Based on the mode of operation specified in the configuration options, the function filters the edge list to return only those edges that are connected to the specified nodes. If a node list CSV file is provided, the function also filters the node list to return only those nodes that are connected to the specified edges. The function then returns two Pandas dataframes, one containing the filtered edge list and the other containing the filtered node list (if provided).
 
@@ -473,7 +524,7 @@ return (
 )
 ```
 
-And now: all together now! A complete implementation of the CSV connector is shown below; a more involved implementation is provided in the `csv_connector.py` file in the [connectors directory](ponyexpress/connectors).
+And now: all together now! A complete implementation of the CSV connector is shown below; a more involved implementation is provided in the `ponyexpress.connectors.csv` module in the [connectors' directory](ponyexpress/connectors).
 
 ```python
 from typing import Dict, List
