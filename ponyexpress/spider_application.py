@@ -9,8 +9,6 @@ STRATEGY_GROUP :
     str : group name of our strategy entrypoint
 
 Todo:
-- add a flag too eagerly load data for unknown nodes from the connector.
-- refactor to use sqlalchemy instead of sqlite3
 - nicer way to pass around the dynamic ORM classes
 """
 from datetime import datetime
@@ -253,11 +251,12 @@ class Spider:
                 sql.DDL(f"CREATE SCHEMA IF NOT EXISTS {self.configuration.db_schema}"),
             )
 
-        Base.metadata.schema = self.configuration.db_schema
-        AppMetaData.metadata.schema = self.configuration.db_schema
-        SeedList.metadata.schema = self.configuration.db_schema
-
-        engine = sql.create_engine(self.configuration.db_url)
+        engine = sql.create_engine(
+            self.configuration.db_url,
+            execution_options={
+                "schema_translation_map": {None: self.configuration.db_schema}
+            },
+        )
         self._cache_ = orm.Session(engine)
 
         _, Node, node_factory = create_node_table(
