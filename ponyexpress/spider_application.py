@@ -253,10 +253,12 @@ class Spider:
 
         engine = sql.create_engine(
             self.configuration.db_url,
-            execution_options={
-                "schema_translation_map": {None: self.configuration.db_schema}
-            },
         )
+        if self.configuration.db_schema is not None:
+            engine = engine.execution_options(
+                schema_translate_map={None: self.configuration.db_schema}
+            )
+
         self._cache_ = orm.Session(engine)
 
         _, Node, node_factory = create_node_table(
@@ -274,7 +276,6 @@ class Spider:
 
         Base.metadata.create_all(engine)
 
-        # with self._cache_.begin():
         appstate = self._cache_.get(AppMetaData, "1")
         if appstate is None:
             appstate = AppMetaData(id="1", iteration=0, version=0)
