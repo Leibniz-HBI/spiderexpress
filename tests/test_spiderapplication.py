@@ -2,10 +2,15 @@
 
 This is the main application, it should load the config, dispatch jobs and keep
 track of its state, handle database connections and manage set up and tear down.
-It is loaded by click has soon has the application starts and the configuration
+It is loaded by click as soon as the application starts and the configuration
 is loaded automatically by the initializer.
 """
+# pylint: disable=E1101
+from pathlib import Path
+
 from pytest import skip
+
+from ponyexpress.spider_application import Spider
 
 
 def test_config_discover():
@@ -22,8 +27,32 @@ def test_load_config():
 
 
 def test_spider():
-    """test Spider creation"""
-    skip()
+    """Should instantiate a spider."""
+    spider = Spider(auto_transitions=False)
+
+    assert spider is not None
+    assert spider.is_idle()
+
+    spider.start(Path("tests/stubs/sevens_grader_random_test.pe.yml"))
+
+    assert spider.is_starting()
+    assert spider.configuration is not None
+
+    spider.gather()
+    assert spider._cache_ is not None  # pylint: disable=W0212
+
+
+def test_spider_with_spikyball():
+    """Should instantiate a spider."""
+    spider = Spider()
+
+    assert spider is not None
+    assert spider.is_idle()
+
+    spider.start(Path("tests/stubs/sevens_grader_spikyball_test.pe.yml"))
+
+    assert spider.is_stopping()
+    assert spider.configuration is not None
 
 
 def test_get_node():

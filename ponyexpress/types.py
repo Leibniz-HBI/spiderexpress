@@ -8,7 +8,7 @@ Leibniz-Institute for Media Research, 2022
 """
 
 
-from dataclasses import dataclass, fields
+from dataclasses import dataclass, fields, is_dataclass
 from pathlib import Path
 from typing import Callable, Dict, List, Optional, Tuple, Type, TypeVar, Union
 
@@ -53,6 +53,8 @@ PlugInSpec = Union[str, Dict[str, Union[str, Dict[str, Union[str, int]]]]]
 
 Allows either a ``str`` or a dictionary.
 """
+ColumnSpec = Dict[str, Union[str, Dict[str, str]]]
+"""Column Specification."""
 
 
 class Configuration(yaml.YAMLObject):
@@ -65,9 +67,13 @@ class Configuration(yaml.YAMLObject):
         seeds: Optional[List[str]] = None,
         seed_file: Optional[str] = None,
         project_name: str = "spider",
-        db_url: str = "sqlite:///{project_name}.sqlite",
-        edge_table_name: str = "edge_list",
-        node_table_name: str = "node_list",
+        db_url: Optional[str] = None,
+        db_schema: Optional[str] = None,
+        empty_seeds: str = "stop",
+        eager: bool = True,
+        edge_raw_table: Optional[ColumnSpec] = None,
+        edge_agg_table: Optional[ColumnSpec] = None,
+        node_table: Optional[ColumnSpec] = None,
         strategy: PlugInSpec = "spikyball",
         connector: PlugInSpec = "telegram",
         max_iteration: int = 10000,
@@ -83,11 +89,15 @@ class Configuration(yaml.YAMLObject):
         self.strategy = strategy
         self.connector = connector
         self.project_name = project_name
-        self.db_url = db_url or f"{project_name}.sqlite"
-        self.edge_table_name = edge_table_name
-        self.node_table_name = node_table_name
+        self.db_url = db_url or f"sqlite://{project_name}.db"
+        self.db_schema = db_schema
+        self.edge_raw_table = edge_raw_table or {"name": "edge_raw", "columns": {}}
+        self.edge_agg_table = edge_agg_table or {"name": "edge_agg", "columns": {}}
+        self.node_table = node_table or {"name": "node", "columns": {}}
         self.max_iteration = max_iteration
         self.batch_size = batch_size
+        self.empty_seeds = empty_seeds if empty_seeds in ["stop", "retry"] else "stop"
+        self.eager = eager
 
 
 @dataclass
@@ -115,16 +125,11 @@ def fromdict(cls: Type[T], dictionary: dict) -> T:
     returns:
         the dataclass with values from the dictionary
     """
-    fieldtypes: Dict[str, type] = {f.name: f.type for f in fields(cls)}
+    fieldtypes: Dict[str, Type] = {f.name: f.type for f in fields(cls)}
     return cls(
         **{
             key: fromdict(fieldtypes[key], value)
-            # we test whether the current value is a dict and whether it should be kept a dict.
-            # py discerns generic types, thus, dict == Dict[unknown, unknown]
-            # but Dict != Dict[str, float].
-            # Thus, making our life hard and it necessary to test against to name of the type.
-            if isinstance(value, dict)
-            and not fieldtypes[key].__name__.startswith("dict")
+            if isinstance(value, dict) and is_dataclass(fieldtypes[key])
             else value
             for key, value in dictionary.items()
         }

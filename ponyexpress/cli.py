@@ -12,11 +12,9 @@ Todo
 - find a mechanism for stopping/starting collections
 """
 from pathlib import Path
-from typing import List
 
 import click
 import yaml
-from loguru import logger as log
 
 from .spider_application import Spider
 from .types import Configuration
@@ -25,26 +23,14 @@ from .types import Configuration
 @click.group()
 @click.pass_context
 def cli(ctx):
-    """traverse the desert"""
+    """Traverse the deserts of the internet."""
     ctx.ensure_object(Spider)
-    log.debug("Hello!")
-
-
-def complete_project_name(*args) -> List[str]:
-    """
-    Searches/lists all project confs in the current context
-    """
-    return [
-        _.name
-        for _ in Spider.available_configurations()
-        if isinstance(_.name, str) and _.name.startswith(args[2])
-    ]
 
 
 @cli.command()
-@click.argument("config", type=click.STRING, shell_complete=complete_project_name)
+@click.argument("config", type=click.Path(path_type=Path, exists=True))
 @click.pass_context
-def start(ctx: click.Context, config: str):
+def start(ctx: click.Context, config: Path):
     """start a job"""
     ctx.obj.start(config)
 

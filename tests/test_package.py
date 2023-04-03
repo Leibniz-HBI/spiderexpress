@@ -1,8 +1,9 @@
 """Test suite for package wide tests"""
 
-from pytest import skip
+from ponyexpress import __version__
 
 
-def test_something():
-    """or don't, you'll have to know."""
-    skip()
+def test_version():
+    """Should assert that the package version is current."""
+
+    assert __version__ == "0.1.0"

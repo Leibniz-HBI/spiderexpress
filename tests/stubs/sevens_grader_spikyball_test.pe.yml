@@ -1,0 +1,41 @@
+!ponyexpress:Configuration
+batch_size: 150
+connector:
+  csv:
+    node_list_location: tests/stubs/7th_graders/nodes.csv
+    edge_list_location: tests/stubs/7th_graders/edges.csv
+    mode: out
+db_url: sqlite:///
+db_schema:
+eager: false
+empty_seeds: stop
+edge_table_name: edge_list
+max_iteration: 10000
+node_table:
+  name: sevens_grader_spkyball_nodes
+  columns: {}
+edge_raw_table:
+  name: sevens_grader_ed_spkyballge_raw
+  columns:
+    layer: Integer
+edge_agg_table:
+  name: sevens_grader_ed_spkyballge_agg
+  columns:
+    layer: max
+project_name: spider
+seeds:
+  - "1"
+  - "13"
+strategy:
+  spikyball:
+    layer_max_size: 5
+    sampler:
+      source_node_probability:
+        coefficient: 1
+        weights: {}
+      target_node_probability:
+        coefficient: 1
+        weights: {}
+      edge_probability:
+        coefficient: 1
+        weights: {}
