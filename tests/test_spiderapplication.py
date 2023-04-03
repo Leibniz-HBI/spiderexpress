@@ -42,6 +42,19 @@ def test_spider():
     assert spider._cache_ is not None  # pylint: disable=W0212
 
 
+def test_spider_with_spikyball():
+    """Should instantiate a spider."""
+    spider = Spider()
+
+    assert spider is not None
+    assert spider.is_idle()
+
+    spider.start(Path("tests/stubs/sevens_grader_spikyball_test.pe.yml"))
+
+    assert spider.is_stopping()
+    assert spider.configuration is not None
+
+
 def test_get_node():
     """
     Spider should be able to retrieve node information either from the connected
