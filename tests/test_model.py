@@ -1,4 +1,6 @@
 """Test suite for the model module."""
+from datetime import datetime
+
 import pytest
 import sqlalchemy as sql
 from sqlalchemy.orm import Session
@@ -141,7 +143,7 @@ def test_seed_list_table(session, create_tables):
     create_tables()
 
     seed_list = SeedList(
-        id="a", status="done", iteration=1, last_crawled_at="2023-01-01T13:37:00"
+        id="a", status="done", iteration=1, last_crawled_at=datetime.now()
     )
     session.add(seed_list)
     session.commit()
