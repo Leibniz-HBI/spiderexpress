@@ -8,7 +8,7 @@ Leibniz-Institute for Media Research, 2022
 """
 
 
-from dataclasses import dataclass, fields
+from dataclasses import dataclass, fields, is_dataclass
 from pathlib import Path
 from typing import Callable, Dict, List, Optional, Tuple, Type, TypeVar, Union
 
@@ -129,12 +129,7 @@ def fromdict(cls: Type[T], dictionary: dict) -> T:
     return cls(
         **{
             key: fromdict(fieldtypes[key], value)
-            # we test whether the current value is a dict and whether it should be kept a dict.
-            # py discerns generic types, thus, dict == Dict[unknown, unknown]
-            # but Dict != Dict[str, float].
-            # Thus, making our life hard and it necessary to test against to name of the type.
-            if isinstance(value, dict)
-            and not fieldtypes[key].__name__.startswith("dict")
+            if isinstance(value, dict) and is_dataclass(fieldtypes[key])
             else value
             for key, value in dictionary.items()
         }
