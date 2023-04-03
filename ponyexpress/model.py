@@ -2,15 +2,21 @@
 
 It keeps track of the crawled data, the configuration and the current state of the crawler.
 """
-# pylint: disable=R0903
-
+import datetime
 from typing import Any, Callable, Dict, List, Tuple, Type
 
 import sqlalchemy as sql
 from sqlalchemy import orm
 
+# pylint: disable=R0903
+
+
 mapper_registry = orm.registry()
-type_lookup = {"Integer": sql.Integer, "Text": sql.Text}
+type_lookup = {
+    "Integer": sql.Integer,
+    "Text": sql.Text,
+    "DateTime": sql.DateTime,
+}
 
 
 class Base(orm.DeclarativeBase):
@@ -43,7 +49,7 @@ class SeedList(Base):
     id: orm.Mapped[str] = orm.mapped_column(primary_key=True, index=True)
     status: orm.Mapped[str] = orm.mapped_column()
     iteration: orm.Mapped[int] = orm.mapped_column()
-    last_crawled_at: orm.Mapped[str] = orm.mapped_column(nullable=True)
+    last_crawled_at: orm.Mapped[datetime.datetime] = orm.mapped_column(nullable=True)
 
 
 class TaskList(Base):
@@ -56,8 +62,8 @@ class TaskList(Base):
     status: orm.Mapped[str] = orm.mapped_column()
     connector: orm.Mapped[str] = orm.mapped_column()
     parent_task_id: orm.Mapped[str] = orm.mapped_column(nullable=True)
-    initiated_at: orm.Mapped[str] = orm.mapped_column(nullable=True)
-    finished_at: orm.Mapped[str] = orm.mapped_column(nullable=True)
+    initiated_at: orm.Mapped[datetime.datetime] = orm.mapped_column(nullable=True)
+    finished_at: orm.Mapped[datetime.datetime] = orm.mapped_column(nullable=True)
 
 
 def create_factory(
