@@ -50,7 +50,8 @@ def test_create_raw_edge_table_with_session(session, create_tables):
 
     create_tables()
 
-    edge = edge_factory({"source": "a", "target": "b", "weight": 1, "view_count": 1})
+    edge = edge_factory({"source": "a", "target": "b", "weight": 1, "view_count": 1, "job_id":
+        "test-job"})
     session.add(edge)
     session.commit()
 
@@ -62,7 +63,7 @@ def test_create_raw_edge_table():
     table, RawEdge, _ = create_raw_edge_table("raw_edges_2", {"weight": "Integer"})
 
     assert table.name == "raw_edges_2"
-    assert len(table.columns) == 5
+    assert len(table.columns) == 6
 
     assert hasattr(RawEdge, "source")
     assert hasattr(RawEdge, "target")
@@ -78,7 +79,7 @@ def test_create_aggregated_edge_table_with_session(session, create_tables):
     create_tables()
 
     edge = edge_factory(
-        {"source": "a", "target": "b", "weight": 1, "view_count": 1, "iteration": 0}
+        {"source": "a", "target": "b", "weight": 1, "view_count": 1, "iteration": 0, "job_id": "test-job", "is_dense": True}
     )
     session.add(edge)
     session.commit()
@@ -93,7 +94,7 @@ def test_create_aggregated_edge_table():
     )
 
     assert table.name == "agg_edges_2"
-    assert len(table.columns) == 5
+    assert len(table.columns) == 6
 
     assert hasattr(Edge, "source")
     assert hasattr(Edge, "target")
@@ -107,7 +108,7 @@ def test_create_node_table_session(session, create_tables):
 
     create_tables()
 
-    node = node_factory({"name": "a", "subscriber_count": 1})
+    node = node_factory({"name": "a", "subscriber_count": 1, "job_id": "test-job"})
     session.add(node)
     session.commit()
 
@@ -119,7 +120,7 @@ def test_create_node_table_with():
     table, Node, _ = create_node_table("nodes2", {"subscriber_count": "Integer"})
 
     assert table.name == "nodes2"
-    assert len(table.columns) == 3
+    assert len(table.columns) == 4
 
     assert hasattr(Node, "name")
     assert hasattr(Node, "subscriber_count")
@@ -130,7 +131,7 @@ def test_app_state_table(session, create_tables):
 
     create_tables()
 
-    app_state = AppMetaData(id="a", version=1, iteration=1)
+    app_state = AppMetaData(id="a", version=1, iteration=1, created_at=datetime.now())
     session.add(app_state)
     session.commit()
 
@@ -143,7 +144,8 @@ def test_seed_list_table(session, create_tables):
     create_tables()
 
     seed_list = SeedList(
-        id="a", status="done", iteration=1, last_crawled_at=datetime.now()
+        job_id="test"
+               "-job", id="a", status="done", iteration=1, last_crawled_at=datetime.now()
     )
     session.add(seed_list)
     session.commit()

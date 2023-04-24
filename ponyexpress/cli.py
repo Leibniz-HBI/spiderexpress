@@ -29,10 +29,14 @@ def cli(ctx):
 
 @cli.command()
 @click.argument("config", type=click.Path(path_type=Path, exists=True))
+@click.option("--reuse/--create",
+              default=False,
+              help="Create a new job or reuse an existing one. [REUSE]"
+              )
 @click.pass_context
-def start(ctx: click.Context, config: Path):
+def start(ctx: click.Context, config: Path, reuse: bool):
     """start a job"""
-    ctx.obj.start(config)
+    ctx.obj.start(config, reuse=reuse)
 
 
 @cli.command()

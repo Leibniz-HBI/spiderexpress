@@ -3,6 +3,7 @@
 It keeps track of the crawled data, the configuration and the current state of the crawler.
 """
 import datetime
+import uuid
 from typing import Any, Callable, Dict, List, Tuple, Type
 
 import sqlalchemy as sql
@@ -39,6 +40,7 @@ class AppMetaData(Base):
     id: orm.Mapped[str] = orm.mapped_column(primary_key=True, index=True)
     version: orm.Mapped[int] = orm.mapped_column()
     iteration: orm.Mapped[int] = orm.mapped_column()
+    created_at: orm.Mapped[datetime.datetime] = orm.mapped_column()
 
 
 class SeedList(Base):
@@ -46,6 +48,7 @@ class SeedList(Base):
 
     __tablename__ = "seed_list"
 
+    job_id: orm.Mapped[str] = orm.mapped_column(primary_key=True, index=True)
     id: orm.Mapped[str] = orm.mapped_column(primary_key=True, index=True)
     status: orm.Mapped[str] = orm.mapped_column()
     iteration: orm.Mapped[int] = orm.mapped_column()
@@ -57,7 +60,8 @@ class TaskList(Base):
 
     __tablename__ = "task_list"
 
-    id: orm.Mapped[int] = orm.mapped_column(primary_key=True, autoincrement=True)
+    job_id: orm.Mapped[str] = orm.mapped_column(primary_key=True, index=True, unique=False)
+    id: orm.Mapped[str] = orm.mapped_column(primary_key=True, default=lambda: str(uuid.uuid4()))
     node_id: orm.Mapped[str] = orm.mapped_column()
     status: orm.Mapped[str] = orm.mapped_column()
     connector: orm.Mapped[str] = orm.mapped_column()
@@ -76,7 +80,7 @@ def create_factory(
             **{
                 key: data.get(key)
                 for key in [column.name for column in spec_fixed]
-                + list(spec_variadic.keys())
+                + list(spec_variadic.keys()) + ["job_id"]
             }
         )
 
@@ -96,7 +100,10 @@ def create_raw_edge_table(
         table: the table
     """
     spec_fixed = [
-        sql.Column("id", sql.Integer, primary_key=True, index=True, autoincrement=True),
+        sql.Column("job_id", sql.Text, primary_key=True, index=True),
+        sql.Column("id", sql.Text, primary_key=True, index=True, default=lambda: str(uuid.uuid4(
+
+        ))),
         sql.Column("source", sql.Text, index=True, unique=False),
         sql.Column("target", sql.Text, index=True, unique=False),
         sql.Column("iteration", sql.Integer, index=True, unique=False),
@@ -138,11 +145,13 @@ def create_aggregated_edge_table(
         table: the table
     """
     spec_fixed = [
+        sql.Column("job_id", sql.Text, primary_key=True, index=True),
         sql.Column("source", sql.Text, primary_key=True, index=True),
         sql.Column("target", sql.Text, primary_key=True, index=True),
-        sql.Column(
-            "iteration", sql.Integer, primary_key=True, index=True, unique=False
-        ),
+        sql.Column("is_dense", sql.Boolean, primary_key=True, index=True, unique=False),
+#        sql.Column(
+#            "iteration", sql.Integer, primary_key=True, index=True, unique=False
+#        ),
         sql.Column("weight", sql.Integer),
     ]
 
@@ -179,6 +188,7 @@ def create_node_table(
         table: the table
     """
     spec_fixed = [
+        sql.Column("job_id", sql.Text, primary_key=True, index=True),
         sql.Column("name", sql.Text, primary_key=True, index=True),
         sql.Column("iteration", sql.Integer, index=True, unique=False),
     ]

@@ -11,11 +11,12 @@ STRATEGY_GROUP :
 Todo:
 - nicer way to pass around the dynamic ORM classes
 """
+import uuid
 from datetime import datetime
 from functools import partial, singledispatchmethod
 from importlib.metadata import entry_points
 from pathlib import Path
-from typing import Optional, Union
+from typing import Optional, Union, List
 
 import pandas as pd
 import sqlalchemy as sql
@@ -34,6 +35,9 @@ from ponyexpress.model import (
     create_raw_edge_table,
 )
 from ponyexpress.types import Configuration, Connector, PlugInSpec, Strategy
+
+FAILED = "failed"
+DONE = "done"
 
 # pylint: disable=W0613,E1101,C0103
 
@@ -138,7 +142,8 @@ class Spider:
             "trigger": "gather",
             "source": "retrying",
             "dest": "gathering",
-            "before": "increment_iteration",
+            # "before": "increment_iteration",  # TODO: increment iteration in the situation
+            #  where are retrying?
         },
         {
             "trigger": "stop",
@@ -173,7 +178,11 @@ class Spider:
     def task_buffer(self):
         """Returns the task buffer, which is a list of tasks that are currently
         being processed."""
-        return self._cache_.query(TaskList).filter(TaskList.status == "new").all()
+        return self._cache_.execute(
+            sql.select(TaskList)
+            .where(TaskList.status == "new")
+            .order_by(TaskList.id)
+        ).scalars().all()
 
     def is_gathering_done(self):
         """Checks if the gathering phase is done."""
@@ -185,7 +194,7 @@ class Spider:
         """Checks if the gathering phase is not done."""
         return not self.is_gathering_done()
 
-    def _conditional_advance(self, *args) -> None:
+    def _conditional_advance(self, *args, **kwargs) -> None:
         """Advances the state machine when the current state is done."""
         if self.state == "idle":
             return
@@ -217,13 +226,14 @@ class Spider:
             if self.trigger(target) is True:
                 break
 
-    def load_config(self, config_file: Path) -> None:
+    def load_config(self, config_file: Path, **kwargs) -> None:
         """Loads a configuration.
 
         params:
           config_file: Path: the configuration to load
         """
         log.debug(f"Attempting to load project from {config_file}.")
+
         if not config_file.exists():
             raise FileNotFoundError(f"Configuration file {config_file} does not exist.")
 
@@ -236,7 +246,7 @@ class Spider:
             self.configuration, Configuration
         )
 
-    def open_database(self, *args) -> None:
+    def open_database(self, *args, reuse: bool = True) -> None:
         """Opens the database and initializes the ORM if necessary."""
         global Node, RawEdge, AggEdge, node_factory, raw_edge_factory, agg_edge_factory  # pylint: disable=W0603
 
@@ -276,9 +286,18 @@ class Spider:
 
         Base.metadata.create_all(engine)
 
-        appstate = self._cache_.get(AppMetaData, "1")
+        if reuse is True:
+            # get the last used appstate and set that to be the current appstate
+            appstate = self._cache_.execute(
+                sql.select(AppMetaData).order_by(AppMetaData.created_at.desc()).limit(1)
+            ).scalar_one_or_none()
+        else:
+            # create a new appstate
+            appstate = None
+
         if appstate is None:
-            appstate = AppMetaData(id="1", iteration=0, version=0)
+            appstate = AppMetaData(id=str(uuid.uuid4()), iteration=0, version=0,
+                                   created_at=datetime.now())
             self._cache_.add(appstate)
             self._cache_.commit()
         self.appstate = appstate
@@ -298,25 +317,36 @@ class Spider:
         """Initializes the seed list."""
         if not self._cache_:
             raise ValueError("Cache is not present.")
+        if not self.configuration:
+            raise ValueError("No configuration loaded.")
+        if self.appstate.iteration != 0:
+            return  # seeds are already initialized
 
         log.debug(f"Copying seeds to database: {', '.join(self.configuration.seeds)}.")
 
         # with self._cache_.begin():
         for seed in self.configuration.seeds:
-            if self._cache_.get(SeedList, seed) is None:
-                _seed = SeedList(id=seed, iteration=0, status="new")
+            if self._cache_.get(SeedList, (self.appstate.id, seed)) is None:
+                _seed = SeedList(job_id=self.appstate.id, id=seed, iteration=0, status="new")
                 self._cache_.add(_seed)
                 self._add_task(_seed)
 
     def _add_task(
-        self, task: Union[SeedList, Node, str], parent: Optional[TaskList] = None
-    ):
-        """Adds a task to the task buffer."""
+            self, task: Union[SeedList, Node, str], parent: Optional[TaskList] = None
+    ) -> bool:
+        """Adds a task to the task buffer.
+
+        params:
+            task: Union[SeedList, Node, str]: the task to add
+            parent: Optional[TaskList]: the parent task
+        returns:
+            bool: True if the task was added, False if it already existed.
+        """
         if not self._cache_:
             raise ValueError("Cache is not present.")
         if not isinstance(task, (SeedList, Node, str)):
             raise ValueError(
-                "Task must be a seed, a node or a node-identifier, but is {type(task).__name__}"
+                f"Task must be a seed, a node or a node-identifier, but is {type(task).__name__}"
             )
 
         node_id = (
@@ -328,19 +358,24 @@ class Spider:
         )
 
         if self._cache_.execute(
-            sql.select(TaskList).where(TaskList.node_id == node_id).limit(1)
+                sql.select(TaskList).where(TaskList.node_id == node_id).limit(1)
         ).scalar():
-            return
+            return False
 
         new_task = TaskList(
+            job_id=self.appstate.id,
             node_id=node_id,
             status="new",
             initiated_at=datetime.now(),
             connector="stub_value",
             parent_task_id=parent.id if parent else None,
         )
+
         self._cache_.add(new_task)
         self._cache_.commit()
+
+        log.debug(f"Queueing task {new_task.id} for node {node_id}.")
+        return True
 
     def should_not_stop_sampling(self):
         """Checks if the sampling phase should be stopped.
@@ -354,7 +389,6 @@ class Spider:
             self._cache_.query(SeedList)
             .filter(
                 SeedList.iteration == self.appstate.iteration + 1,
-                SeedList.status == "new",
             )
             .count()
         )
@@ -369,7 +403,7 @@ class Spider:
             raise ValueError("Cache is not present.")
 
         return (
-            self.configuration.empty_seeds != "stop" and self.retry_count < MAX_RETRIES
+                self.configuration.empty_seeds != "stop" and self.retry_count < MAX_RETRIES
         )
 
     def retry_with_unused_seeds(self):
@@ -377,28 +411,48 @@ class Spider:
         if not self._cache_:
             raise ValueError("Cache is not present.")
 
-        candidate_nodes_names = (
-            self._cache_.execute(sql.select(SeedList.id)).scalars().all()
+        # Get the ids of all nodes that are in the sample
+        sampled_seed_ids = (
+            self._cache_.execute(
+                sql
+                .select(SeedList.id)
+                # .where(SeedList.status == "done", SeedList.status == "failed")
+            ).scalars().all()
         )
 
         candidates = (
             self._cache_.execute(
-                sql.select(Node.name).where(Node.name.not_in(candidate_nodes_names))
+                sql
+                .select(Node.name)
+                .where(Node.name.not_in(sampled_seed_ids))
             )
             .scalars()
             .all()
         )
 
+        for candidate_seed in candidates:
+            if candidate_seed is None:
+                continue
+
+            seed = self._cache_.get(SeedList, candidate_seed)
+
+            if seed is not None:
+                if seed.status == FAILED:
+                    continue
+                seed.iteration = self.appstate.iteration
+            else:
+                if self._add_task(candidate_seed) is False:  # already fetched
+                    seed = SeedList(id=candidate_seed, iteration=self.appstate.iteration,
+                                    status="done")
+                else:
+                    seed = SeedList(id=candidate_seed, iteration=self.appstate.iteration,
+                                    status="new")
+                self._cache_.add(seed)
+
         self.retry_count += 1
-        self._cache_.add_all(
-            [
-                SeedList(id=seed, iteration=self.appstate.iteration + 1, status="new")
-                for seed in candidates
-            ]
-        )
 
         log.debug(
-            f"{self.retry_count} retry with unused seeds: {', '.join(candidates)}"
+            f"retry #{self.retry_count} with unused nodes: {', '.join(candidates)}"
         )
 
     def increment_iteration(self):
@@ -420,25 +474,32 @@ class Spider:
         if len(self.task_buffer) == 0:
             return
 
-        task: TaskList = self.task_buffer.pop(0)
+        task: TaskList = self.task_buffer[0]
 
-        log.debug(f"Attempting to gather data for {task.node_id}.")
+        log.debug(f"Gathering data for {task.node_id}.")
 
-        # Begin transaction with the cache
-        node_info = self._cache_.get(Node, task.node_id)
-
-        if node_info is None:
+        if self._cache_.execute(sql.select(Node).where(Node.name == task.node_id)).scalar_one_or_none() is None:
             self._dispatch_connector_for_node_(task)
 
-        # Mark the node as done
-        seed = self._cache_.get(SeedList, task.node_id)
+        # Mark the node as done or failed
+        seed = self._cache_.execute(
+            sql.select(SeedList).where(SeedList.job_id == self.appstate.id, SeedList.id ==
+                                       task.node_id).limit(1)
+        ).scalar_one_or_none()
 
-        if seed is not None:
-            seed.status = "done"
-            seed.last_crawled_at = datetime.now()
-        task.status = "done"
-        task.finished_at = datetime.now()
-        self._cache_.commit()
+        if task.status == FAILED:
+            if seed is not None:
+                seed.status = FAILED
+                self._cache_.commit()
+            return
+        if task.status == DONE:
+            if seed is not None:
+                log.debug(f"Marking {seed.id} in status {seed.status} as {task.status}.")
+
+                seed.status = DONE
+                seed.last_crawled_at = datetime.now()
+                self._cache_.commit()
+            return
 
     def iteration_limit_not_reached(self):
         """Checks if the iteration limit has been reached."""
@@ -480,55 +541,92 @@ class Spider:
                 for column, aggregation in aggregation_spec.items()
             ],
         ]
-        sql_statement = (
-            self._cache_.query(
+
+        seeds = self._cache_.execute(
+            sql
+            .select(SeedList.id)
+            .where(SeedList.iteration == self.appstate.iteration, SeedList.status == "done")
+        ).scalars().all()
+
+        slashtab = "\n    "
+
+        log.debug(f"""Sampling from seeds:\n    {
+        slashtab.join([str(_) for _ in self._cache_.execute(
+            sql
+            .select(SeedList)
+            .where(SeedList.iteration == self.appstate.iteration, SeedList.status == "done")
+        ).scalars().all()])
+        }""")
+
+        edges_query = (
+            sql.select(
                 RawEdge.source,
                 RawEdge.target,
-                RawEdge.iteration,
                 *aggregations,
             )
-            .where(RawEdge.iteration == self.appstate.iteration)
-            .group_by(RawEdge.source, RawEdge.target, RawEdge.iteration)
-            .statement
+            .where(RawEdge.source.in_(seeds))
+            .group_by(RawEdge.source, RawEdge.target)
         )
+        known_nodes_query = (sql
+                             .select(SeedList.id)
+                             .where(SeedList.iteration <= self.appstate.iteration)
+                             )
 
-        log.debug(f"Aggregation query: {sql_statement}")
+        log.debug(f"Aggregation query:\n{edges_query}")
 
         edges = pd.read_sql(
-            sql_statement,
+            edges_query,
             self._cache_.connection(),
         )
         nodes = pd.read_sql(
             self._cache_.query(Node).statement, self._cache_.connection()
         )
-        known_nodes = self._cache_.execute(sql.select(SeedList.id)).scalars().all()
+
+        log.debug(f"Known nodes query:\n{known_nodes_query}")
+
+        known_nodes: List[str] = self._cache_.execute(
+            known_nodes_query
+        ).scalars(SeedList.id).all()
+
+        log.debug(f"Known nodes: {', '.join(known_nodes)}")
 
         new_seeds, new_edges, _ = self.strategy(edges, nodes, known_nodes)
+
+        log.debug(f"Sampling returned {_} outward edges.")
 
         if len(new_seeds) == 0:
             log.warning("Found no new seeds.")
         elif self.retry_count > 0:
             self.retry_count = 0
 
+        log.info(f"Found {', '.join(new_seeds)} as seeds for iteration"
+                 f" {self.appstate.iteration + 1}")
+
         for seed in new_seeds:
             if seed is None:
                 continue
-            if self._cache_.get(SeedList, seed) is None:
+            if self._cache_.execute(sql.select(SeedList).where(SeedList.id == seed)).scalar_one_or_none() is None:
                 _seed = SeedList(
-                    id=seed, iteration=self.appstate.iteration + 1, status="new"
+                    job_id=self.appstate.id, id=seed, iteration=self.appstate.iteration + 1, \
+                    status="new"
                 )
                 self._cache_.add(_seed)
-                self._add_task(_seed)
-        self._cache_.add_all(
-            [
-                agg_edge_factory(edge)
-                for edge in new_edges.to_dict(orient="records")
-                if edge["source"] is not None and edge["target"] is not None
-            ]
-        )
+                if self._add_task(_seed) is False:
+                    _seed.status = DONE
+            else:
+                log.warning(f"Seed {seed} already exists.")
+        new_edges["job_id"] = self.appstate.id
+        for edge in new_edges.to_dict(orient="records"):
+            if edge["source"] is not None and edge["target"] is not None:
+                self._cache_.merge(agg_edge_factory({**edge, "is_dense": True}))
+        _["job_id"] = self.appstate.id
+        for edge in _.to_dict(orient="records"):
+            if edge.get("source") is not None and edge.get("target") is not None:
+                self._cache_.merge(agg_edge_factory({**edge, "is_dense": False}))
+
         self._cache_.commit()
 
-    def load_plugins(self, *args):
+    def load_plugins(self, *args, **kwargs):
         """Loads the plug-ins."""
         self.strategy = self.get_strategy(self.configuration.strategy)
         self.connector = self.get_connector(self.configuration.connector)
@@ -556,43 +654,54 @@ class Spider:
         """
         return self._get_plugin_from_spec_(connector_name, CONNECTOR_GROUP)
 
-    # section: private methods
+        # section: private methods
 
-    def _dispatch_connector_for_node_(self, node: TaskList):
+    def _dispatch_connector_for_node_(self, task: TaskList):
         if not self.configuration or not self.connector:
             raise ValueError("Configuration or Connector are not present")
 
-        edges, nodes = self.connector([node.node_id])
+        edges, nodes = self.connector([task.node_id])
 
         log.debug(f"edges:\n{edges}\n\nnodes:{nodes}\n")
 
-        if len(edges) > 0:
-            log.info(
-                f"""Persisting {
-                    len(edges)
-                } edges for node {
-                    node.node_id
-                } in iteration
-                #{
-                    self.appstate.iteration
-                }."""
-            )
-            edges["iteration"] = self.appstate.iteration
-            self._cache_.add_all(
-                [raw_edge_factory(edge) for edge in edges.to_dict(orient="records")]
-            )
-            if self.configuration.eager is True and node.parent_task_id is None:
-                #  We add only new task if the parent_task_id is None to avoid snowballing
-                #  the entire population before we even begin sampling.
-                for target in edges["target"].unique().tolist():
-                    self._add_task(target, parent=node)
+        if len(nodes) <= 0:
+            task.status = "failed"
             self._cache_.commit()
-        if len(nodes) > 0:
+            return
+        else:
             nodes["iteration"] = self.appstate.iteration
+            nodes["job_id"] = self.appstate.id
+
             self._cache_.add_all(
                 [node_factory(node) for node in nodes.to_dict(orient="records")]
             )
             self._cache_.commit()
+
+        if len(edges) > 0:
+            log.info(
+                f"""Persisting {
+                len(edges)
+                } edges for node {
+                task.node_id
+                } in iteration #{
+                self.appstate.iteration
+                }."""
+            )
+            edges["iteration"] = self.appstate.iteration
+            edges["job_id"] = self.appstate.id
+
+            self._cache_.add_all(
+                [raw_edge_factory(edge) for edge in edges.to_dict(orient="records")]
+            )
+            if self.configuration.eager is True and task.parent_task_id is None:
+                #  We add only new task if the parent_task_id is None to avoid snowballing
+                #  the entire population before we even begin sampling.
+                for target in edges["target"].unique().tolist():
+                    self._add_task(target, parent=task)
+
+        task.status = "done"
+        task.finished_at = datetime.now()
+        self._cache_.commit()
 
     @singledispatchmethod
     def _get_plugin_from_spec_(self, spec: PlugInSpec, group: str):
