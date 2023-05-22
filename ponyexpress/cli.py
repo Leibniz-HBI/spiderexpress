@@ -11,12 +11,13 @@ Todo
 - Refine verbs/commands for the CLI
 - find a mechanism for stopping/starting collections
 """
+from importlib.metadata import entry_points
 from pathlib import Path
 
 import click
 import yaml
 
-from .spider_application import Spider
+from .spider_application import CONNECTOR_GROUP, STRATEGY_GROUP, Spider
 from .types import Configuration
 
 
@@ -53,3 +54,14 @@ def create(config: str, interactive: bool):
 
     with (Path() / f"{config}.pe.yml").open("w", encoding="utf8") as file:
         yaml.dump(conf, file)
+
+
+@cli.command()
+def list():  # pylint: disable=W0622
+    """list all plugins"""
+    click.echo("--- connectors ---", color="blue")
+    for connector in entry_points().get(CONNECTOR_GROUP, []):
+        click.echo(connector.name)
+    click.echo("--- strategies ---")
+    for strategy in entry_points().get(STRATEGY_GROUP, []):
+        click.echo(strategy.name)

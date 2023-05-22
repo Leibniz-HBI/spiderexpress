@@ -8,13 +8,10 @@ license = "MIT"
 [tool.poetry.dependencies]
 python = "^3.8"
 pandas = "*"
-lxml = "*"
 SQLAlchemy = "*"
 loguru = "*"
 numpy = "*"
-requests = "*"
 click = "*"
-ImageHash = "*"
 psycopg2-binary = "*"
 PyYAML = "*"
 transitions = "^0.9.0"
@@ -38,7 +35,6 @@ build-backend = "poetry.core.masonry.api"
 ponyexpress = 'ponyexpress.cli:cli'
 
 [tool.poetry.plugins."ponyexpress.connectors"]
-telegram = "ponyexpress.connectors.telegram:telegram_connector"
 csv = "ponyexpress.connectors.csv:csv_connector"
 
 [tool.poetry.plugins."ponyexpress.strategies"]
