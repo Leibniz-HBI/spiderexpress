@@ -6,4 +6,3 @@ At the moment we have two connectors:
 """
 
 from .csv import csv_connector
-from .telegram import telegram_connector
