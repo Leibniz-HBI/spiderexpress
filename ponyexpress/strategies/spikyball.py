@@ -13,7 +13,7 @@ from typing import Dict, List, Tuple, Union
 import pandas as pd
 from loguru import logger as log
 
-from ..types import fromdict
+from ..types import from_dict
 
 
 @dataclass
@@ -319,7 +319,7 @@ def spikyball_strategy(
     """
 
     if isinstance(configuration, dict):
-        configuration = fromdict(SpikyBallConfiguration, configuration)
+        configuration = from_dict(SpikyBallConfiguration, configuration)
 
     e_in, e_out = filter_edges(edges, known_nodes)
     seeds, e_sampled = sample_edges(

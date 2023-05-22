@@ -150,7 +150,6 @@ class Spider:
     """List of transitions the spider can make."""
 
     def __init__(self, auto_transitions=True) -> None:
-
         self.machine = Machine(
             self,
             states=Spider.states,
@@ -220,8 +219,8 @@ class Spider:
     def load_config(self, config_file: Path) -> None:
         """Loads a configuration.
 
-        params:
-          config_file: Path: the configuration to load
+        Arguments:
+          config_file(Path): the configuration to load
         """
         log.debug(f"Attempting to load project from {config_file}.")
         if not config_file.exists():

@@ -4,7 +4,7 @@ from typing import Dict, List, Optional, Union
 
 import pandas as pd
 
-from ponyexpress.types import fromdict
+from ponyexpress.types import from_dict
 
 
 @dataclasses.dataclass
@@ -21,7 +21,7 @@ def csv_connector(
 ) -> (pd.DataFrame, pd.DataFrame):
     """The CSV connector!"""
     if isinstance(configuration, dict):
-        configuration = fromdict(CSVConnectorConfiguration, configuration)
+        configuration = from_dict(CSVConnectorConfiguration, configuration)
 
     edges = pd.read_csv(configuration.edge_list_location, dtype=str)
     nodes = (

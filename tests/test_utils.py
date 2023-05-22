@@ -10,7 +10,7 @@ from dataclasses import asdict
 
 import pytest
 
-from ponyexpress.types import fromdict
+from ponyexpress.types import from_dict
 from tests.conftest import MyFunkyTestClass, MyOtherFunkyTestClass
 
 
@@ -31,6 +31,6 @@ from tests.conftest import MyFunkyTestClass, MyOtherFunkyTestClass
 )
 def test_fromdict(value: object):
     """test fromdict()"""
-    ans = fromdict(type(value), asdict(value))
+    ans = from_dict(type(value), asdict(value))
     print(ans)
     assert ans == value

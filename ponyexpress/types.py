@@ -16,14 +16,12 @@ import pandas as pd
 import yaml
 
 Connector = Callable[[List[str]], Tuple[pd.DataFrame, pd.DataFrame]]
-"""Connector Interface
+"""Connector Interface.
 
-args:
+Arguments:
+    node_names(List[str]): nodes to get information on
 
-    node_names : List[str] : nodes to get information on
-
-returns:
-
+Returns:
     An edge table with new edges (these will be persisted into the dense edge-table).
     A node table with information on the requested nodes.
 """
@@ -31,21 +29,16 @@ Strategy = Callable[
     [pd.DataFrame, pd.DataFrame, List[str]],
     Tuple[List[str], pd.DataFrame, pd.DataFrame],
 ]
-"""Strategy Interface
+"""Strategy Interface.
 
-args:
-    edges : DataFrame : edges table
+Arguments:
+    edges(DataFrame): edges table
+    nodes(DataFrame): nodes table
+    known_nodes(List[str]): known node names
 
-    nodes : DataFrame : nodes table
-
-    known_nodes : List[str] : known node names
-
-returns:
-
+Returns:
     1. a list of new seed nodes in a list of node names
-
     2. DataFrame with new edges that needs to be added to the network
-
     3. DataFrame with new nodes that needs to be added to the network
 """
 PlugInSpec = Union[str, Dict[str, Union[str, Dict[str, Union[str, int]]]]]
@@ -111,7 +104,7 @@ class ConfigurationItem:
 T = TypeVar("T")
 
 
-def fromdict(cls: Type[T], dictionary: dict) -> T:
+def from_dict(cls: Type[T], dictionary: dict) -> T:
     """convert a dictionary to a dataclass
 
     warning:
@@ -125,11 +118,12 @@ def fromdict(cls: Type[T], dictionary: dict) -> T:
     returns:
         the dataclass with values from the dictionary
     """
-    fieldtypes: Dict[str, Type] = {f.name: f.type for f in fields(cls)}
+    field_types: Dict[str, Type] = {f.name: f.type for f in fields(cls)}
+
     return cls(
         **{
-            key: fromdict(fieldtypes[key], value)
-            if isinstance(value, dict) and is_dataclass(fieldtypes[key])
+            key: from_dict(field_types[key], value)
+            if isinstance(value, dict) and is_dataclass(field_types[key])
             else value
             for key, value in dictionary.items()
         }
