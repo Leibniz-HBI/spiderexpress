@@ -10,7 +10,7 @@ from pathlib import Path
 
 from pytest import skip
 
-from ponyexpress.spider_application import Spider
+from ponyexpress.spider import Spider
 
 
 def test_config_discover():
