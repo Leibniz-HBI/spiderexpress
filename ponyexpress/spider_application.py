@@ -34,6 +34,7 @@ from ponyexpress.model import (
     create_raw_edge_table,
 )
 from ponyexpress.types import Configuration, Connector, PlugInSpec, Strategy
+from ponyexpress.router import Router
 
 # pylint: disable=W0613,E1101,C0103
 
@@ -149,7 +150,7 @@ class Spider:
     ]
     """List of transitions the spider can make."""
 
-    def __init__(self, auto_transitions=True) -> None:
+    def __init__(self, configuration: Configuration, auto_transitions=True) -> None:
         self.machine = Machine(
             self,
             states=Spider.states,
@@ -162,11 +163,14 @@ class Spider:
         self.retry_count = 0
 
         # set the loaded configuration to None, as it is not loaded yet
-        self.configuration: Optional[Configuration] = None
-        self.connector: Optional[Connector] = None
-        self.strategy: Optional[Strategy] = None
-        self._cache_: Optional[orm.Session] = None
-        self.appstate: Optional[AppMetaData] = None
+        self.configuration: Configuration = configuration
+        self.strategy: Strategy = self._get_plugin_from_spec_(
+            self.configuration.strategy,
+            STRATEGY_GROUP
+        )
+        self.routers = [Router(name, spec, self.configuration) for name, spec in
+                        self.configuration.routing.items()]
+        self.open_database()
 
     @property
     def task_buffer(self):
@@ -179,10 +183,6 @@ class Spider:
 
         log.debug(f"Checking if gathering is done. {len(self.task_buffer)} tasks left.")
         return len(self.task_buffer) == 0
-
-    def is_gathering_not_done(self):
-        """Checks if the gathering phase is not done."""
-        return not self.is_gathering_done()
 
     def _conditional_advance(self, *args) -> None:
         """Advances the state machine when the current state is done."""

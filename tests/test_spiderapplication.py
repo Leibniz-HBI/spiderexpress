@@ -8,10 +8,19 @@ is loaded automatically by the initializer.
 # pylint: disable=E1101
 from pathlib import Path
 
+import pytest
+import yaml
 from pytest import skip
 
+from ponyexpress import Configuration
 from ponyexpress.spider_application import Spider
 
+
+@pytest.fixture
+def default_configuration():
+    with Path("tests/stubs/sevens_grader_random_test.pe.yml").open("r", encoding="utf8") as cf:
+        config = yaml.safe_load(cf)
+    return config
 
 def test_config_discover():
     """
@@ -26,14 +35,14 @@ def test_load_config():
     skip()
 
 
-def test_spider():
+def test_spider(default_configuration: Configuration):
     """Should instantiate a spider."""
-    spider = Spider(auto_transitions=False)
+    spider = Spider(default_configuration, auto_transitions=False)
 
     assert spider is not None
     assert spider.is_idle()
 
-    spider.start(Path("tests/stubs/sevens_grader_random_test.pe.yml"))
+    spider.start()
 
     assert spider.is_starting()
     assert spider.configuration is not None
