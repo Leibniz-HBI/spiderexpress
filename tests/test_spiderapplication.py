@@ -18,9 +18,12 @@ from ponyexpress.spider_application import Spider
 
 @pytest.fixture
 def default_configuration():
-    with Path("tests/stubs/sevens_grader_random_test.pe.yml").open("r", encoding="utf8") as cf:
+    with Path("tests/stubs/sevens_grader_random_test.pe.yml").open(
+        "r", encoding="utf8"
+    ) as cf:
         config = yaml.safe_load(cf)
     return config
+
 
 def test_config_discover():
     """

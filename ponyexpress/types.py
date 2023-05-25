@@ -9,10 +9,9 @@ Leibniz-Institute for Media Research, 2022
 
 
 from dataclasses import dataclass, fields, is_dataclass
-from typing import Callable, Dict, List, Optional, Tuple, Type, TypeVar, Union, Any
+from typing import Any, Callable, Dict, List, Optional, Tuple, Type, TypeVar, Union
 
 import pandas as pd
-
 
 Connector = Callable[[List[str]], Tuple[pd.DataFrame, pd.DataFrame]]
 """Connector Interface.
@@ -67,11 +66,14 @@ class Configuration:
         connectors (Dict[str, ConnectorConfiguration]): configures which connectors to use and which
             data to persist
     """
+
     project_name: str
     db_url: str
     db_schema: Optional[str]
     iteration_limit: int
-    strategy: Union[str, Dict[str, Any]]  # We cannot convert to dataclasses at this stage as
+    strategy: Union[
+        str, Dict[str, Any]
+    ]  # We cannot convert to dataclasses at this stage as
     # each strategy implementation has its own requirements regarding its configuration.
     routing: Dict[str, "RoutingConfiguration"]
     connectors: Dict[str, "ConnectorConfiguration"]
@@ -82,6 +84,7 @@ class Configuration:
 @dataclass
 class RoutingConfiguration:
     """Configure a Router."""
+
     field: str
     pattern: Optional[str]
     dispatch_with: str

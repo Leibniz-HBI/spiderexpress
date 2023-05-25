@@ -33,8 +33,8 @@ from ponyexpress.model import (
     create_node_table,
     create_raw_edge_table,
 )
-from ponyexpress.types import Configuration, Connector, PlugInSpec, Strategy
 from ponyexpress.router import Router
+from ponyexpress.types import Configuration, Connector, PlugInSpec, Strategy
 
 # pylint: disable=W0613,E1101,C0103
 
@@ -165,11 +165,12 @@ class Spider:
         # set the loaded configuration to None, as it is not loaded yet
         self.configuration: Configuration = configuration
         self.strategy: Strategy = self._get_plugin_from_spec_(
-            self.configuration.strategy,
-            STRATEGY_GROUP
+            self.configuration.strategy, STRATEGY_GROUP
         )
-        self.routers = [Router(name, spec, self.configuration) for name, spec in
-                        self.configuration.routing.items()]
+        self.routers = [
+            Router(name, spec, self.configuration)
+            for name, spec in self.configuration.routing.items()
+        ]
         self.open_database()
 
     @property
