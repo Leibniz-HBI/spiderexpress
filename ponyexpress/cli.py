@@ -17,7 +17,7 @@ from pathlib import Path
 import click
 import yaml
 
-from .spider_application import CONNECTOR_GROUP, STRATEGY_GROUP, Spider
+from .spider import CONNECTOR_GROUP, STRATEGY_GROUP, Spider
 from .types import Configuration
 
 
