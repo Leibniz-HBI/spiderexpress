@@ -4,6 +4,8 @@ from typing import List
 
 import pandas as pd
 
+from ponyexpress.types import PlugIn
+
 
 def snowball_strategy(
     edges: pd.DataFrame,
@@ -29,3 +31,8 @@ def snowball_strategy(
     new_nodes = nodes.loc[nodes.name.isin(new_seeds), :]
 
     return new_seeds, edges_to_add, new_nodes
+
+
+snowball = PlugIn(
+    callable=snowball_strategy, default_configuration=None, metadata={}, tables={}
+)

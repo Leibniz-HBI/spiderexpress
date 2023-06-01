@@ -12,8 +12,6 @@ Todo:
 - nicer way to pass around the dynamic ORM classes
 """
 from datetime import datetime
-from functools import partial, singledispatchmethod
-from importlib.metadata import entry_points
 from pathlib import Path
 from typing import Optional, Union
 
@@ -33,7 +31,8 @@ from ponyexpress.model import (
     create_node_table,
     create_raw_edge_table,
 )
-from ponyexpress.types import Configuration, Connector, PlugInSpec, Strategy
+from ponyexpress.plugin_manager import get_plugin
+from ponyexpress.types import Configuration, Connector, Strategy
 
 # pylint: disable=W0613,E1101,C0103
 
@@ -483,11 +482,9 @@ class Spider:
             self._cache_.query(
                 RawEdge.source,
                 RawEdge.target,
-                RawEdge.iteration,
                 *aggregations,
             )
-            .where(RawEdge.iteration == self.appstate.iteration)
-            .group_by(RawEdge.source, RawEdge.target, RawEdge.iteration)
+            .group_by(RawEdge.source, RawEdge.target)
             .statement
         )
 
@@ -502,7 +499,19 @@ class Spider:
         )
         known_nodes = self._cache_.execute(sql.select(SeedList.id)).scalars().all()
 
+        log.info(
+            f"""Sampling from {
+            len(edges)
+        } edges with {
+            len(nodes)
+        } nodes, whereas {
+            len(known_nodes)
+        } nodes are known already."""
+        )
+
         new_seeds, new_edges, _ = self.strategy(edges, nodes, known_nodes)
+
+        new_edges["iteration"] = self.appstate.iteration
 
         if len(new_seeds) == 0:
             log.warning("Found no new seeds.")
@@ -529,31 +538,8 @@ class Spider:
 
     def load_plugins(self, *args):
         """Loads the plug-ins."""
-        self.strategy = self.get_strategy(self.configuration.strategy)
-        self.connector = self.get_connector(self.configuration.connector)
-
-    def get_strategy(self, strategy_name: PlugInSpec) -> Strategy:
-        """lazy load a Strategy
-        Args:
-          strategy_name: PlugInSpec: name of the strategy
-        Returns:
-          the wished for strategy
-        Raises:
-         IndexError : if the strategy does not exist
-        """
-
-        return self._get_plugin_from_spec_(strategy_name, STRATEGY_GROUP)
-
-    def get_connector(self, connector_name: PlugInSpec) -> Connector:
-        """lazy load a Connector
-        Args:
-          connector_name: PlugInSpec: name of the connector
-        Returns:
-          the wished for connector.
-        Raises:
-          IndexError : if the connector does not exist
-        """
-        return self._get_plugin_from_spec_(connector_name, CONNECTOR_GROUP)
+        self.strategy = get_plugin(self.configuration.strategy, STRATEGY_GROUP)
+        self.connector = get_plugin(self.configuration.connector, CONNECTOR_GROUP)
 
     # section: private methods
 
@@ -577,9 +563,9 @@ class Spider:
                 }."""
             )
             edges["iteration"] = self.appstate.iteration
-            self._cache_.add_all(
-                [raw_edge_factory(edge) for edge in edges.to_dict(orient="records")]
-            )
+            for edge in edges.to_dict(orient="records"):
+                self._cache_.merge(raw_edge_factory(edge))
+
             if self.configuration.eager is True and node.parent_task_id is None:
                 #  We add only new task if the parent_task_id is None to avoid snowballing
                 #  the entire population before we even begin sampling.
@@ -588,23 +574,6 @@ class Spider:
             self._cache_.commit()
         if len(nodes) > 0:
             nodes["iteration"] = self.appstate.iteration
-            self._cache_.add_all(
-                [node_factory(node) for node in nodes.to_dict(orient="records")]
-            )
+            for _node in nodes.to_dict(orient="records"):
+                self._cache_.merge(node_factory(_node))
             self._cache_.commit()
-
-    @singledispatchmethod
-    def _get_plugin_from_spec_(self, spec: PlugInSpec, group: str):
-        raise NotImplementedError()
-
-    @_get_plugin_from_spec_.register
-    def _(self, spec: str, group: str):
-        entry_point = [_ for _ in entry_points()[group] if _.name == spec]
-        return entry_point[0].load()
-
-    @_get_plugin_from_spec_.register
-    def _(self, spec: dict, group: str):
-        for key, values in spec.items():
-            entry_point = [_ for _ in entry_points()[group] if _.name == key]
-            log.debug(f"Using this configuration: {values}")
-            return partial(entry_point[0].load(), configuration=values)

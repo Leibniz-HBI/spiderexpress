@@ -134,3 +134,29 @@ def fromdict(cls: Type[T], dictionary: dict) -> T:
             for key, value in dictionary.items()
         }
     )
+
+
+@dataclass
+class PlugIn:
+    """Transports a plug-in and their metadata.
+
+    Attributes:
+        default_configuration: a default configuration which should be inserted into
+            new projects as default value
+        callable: the plug-in's implementation
+        tables: which tables are to be created and how for this plug-in
+        metadata: additional metadata, as authors, documentation, etc.
+    """
+
+    default_configuration: Dict
+    callable: Callable
+    tables: Dict[str, ColumnSpec]
+    metadata: Dict[str, str]
+
+
+class RetryableException(Exception):
+    """Raise if you want ponyexpress to retry the task."""
+
+
+class FinalException(Exception):
+    """Raise if you want ponyexpress to abort."""

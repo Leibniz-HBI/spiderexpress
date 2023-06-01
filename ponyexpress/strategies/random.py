@@ -4,6 +4,8 @@ from typing import Any, Dict, List
 
 import pandas as pd
 
+from ponyexpress.types import PlugIn
+
 
 def random_strategy(
     edges: pd.DataFrame,
@@ -30,3 +32,8 @@ def random_strategy(
     new_nodes = nodes.loc[nodes.name.isin(new_seeds), :]
 
     return new_seeds, edges_to_add, new_nodes
+
+
+random = PlugIn(
+    callable=random_strategy, tables={}, metadata={}, default_configuration={"n": 10}
+)

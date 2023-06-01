@@ -35,13 +35,12 @@ build-backend = "poetry.core.masonry.api"
 ponyexpress = 'ponyexpress.cli:cli'
 
 [tool.poetry.plugins."ponyexpress.connectors"]
-csv = "ponyexpress.connectors.csv:csv_connector"
+csv = "ponyexpress.connectors.csv:csv"
 
 [tool.poetry.plugins."ponyexpress.strategies"]
-spikyball = "ponyexpress.strategies.spikyball:spikyball_strategy"
-random = "ponyexpress.strategies.random:random_strategy"
-snowball = "ponyexpress.strategies.snowball.snowball_strategy"
-
+spikyball = "ponyexpress.strategies.spikyball:spikyball"
+random = "ponyexpress.strategies.random:random"
+snowball = "ponyexpress.strategies.snowball.snowball"
 
 [tool.pytest.ini_options]
 addopts = "--cov-report html:tests/coverage --cov=ponyexpress --capture=sys"
