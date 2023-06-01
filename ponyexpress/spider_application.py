@@ -150,7 +150,6 @@ class Spider:
     """List of transitions the spider can make."""
 
     def __init__(self, auto_transitions=True) -> None:
-
         self.machine = Machine(
             self,
             states=Spider.states,
@@ -316,7 +315,7 @@ class Spider:
             raise ValueError("Cache is not present.")
         if not isinstance(task, (SeedList, Node, str)):
             raise ValueError(
-                "Task must be a seed, a node or a node-identifier, but is {type(task).__name__}"
+                f"Task must be a seed, a node or a node-identifier, but is {type(task).__name__}"
             )
 
         node_id = (
@@ -330,6 +329,7 @@ class Spider:
         if self._cache_.execute(
             sql.select(TaskList).where(TaskList.node_id == node_id).limit(1)
         ).scalar():
+            log.warning(f"Task with id { node_id } already exists. Returning early.")
             return
 
         new_task = TaskList(
@@ -425,14 +425,23 @@ class Spider:
         log.debug(f"Attempting to gather data for {task.node_id}.")
 
         # Begin transaction with the cache
+        # and determine whether to fetch new data or if the cache data is sufficient
         node_info = self._cache_.get(Node, task.node_id)
-
-        if node_info is None:
-            self._dispatch_connector_for_node_(task)
-
-        # Mark the node as done
         seed = self._cache_.get(SeedList, task.node_id)
 
+        log.debug(
+            f"""Checking whether to get new data for { task.node_id }: node present {
+            "(x)" if node_info else "( )"
+        } and seed present {
+            "(x)" if seed else "( )"
+        }"""
+        )
+
+        # This criterion is short-sighted and only valid for the Telegram-scraper
+        # if node_info is None or seed is None:
+        self._dispatch_connector_for_node_(task)
+
+        # Mark the node as done
         if seed is not None:
             seed.status = "done"
             seed.last_crawled_at = datetime.now()
