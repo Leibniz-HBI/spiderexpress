@@ -13,7 +13,7 @@ from typing import Dict, List, Tuple, Union
 import pandas as pd
 from loguru import logger as log
 
-from ..types import fromdict
+from ..types import PlugIn, fromdict
 
 
 @dataclass
@@ -212,12 +212,12 @@ def sample_edges(
     """
     source_nodes = (
         outward_edges.reset_index()
-        .merge(nodes, left_on="source", right_on="name")
+        .merge(nodes, left_on="source", right_on="name", how="left")
         .set_index("index")
     )
     target_nodes = (
         outward_edges.reset_index()
-        .merge(nodes, left_on="target", right_on="name")
+        .merge(nodes, left_on="target", right_on="name", how="left")
         .set_index("index")
     )
 
@@ -242,8 +242,8 @@ def sample_edges(
     log.debug(f"Sampling these data points:\n{outward_edges}\n")
 
     if (
-        len(outward_edges) <= max_layer_size
-    ):  # if we have fewer edges than max, return everything
+        len(outward_edges.target.unique()) <= max_layer_size
+    ):  # if we have fewer nodes than wished for, return everything
         seeds = outward_edges["target"].unique().tolist()
         sample = outward_edges.drop(labels="probability", axis=1)
     else:
@@ -284,7 +284,7 @@ def filter_edges(
     mask = edges.target.isin(known_nodes)
     groups = {
         "in": edges.loc[mask, :],
-        "out": edges.loc[~edges.target.isin(known_nodes), :],
+        "out": edges.loc[~mask, :],
     }
 
     return (
@@ -330,3 +330,8 @@ def spikyball_strategy(
     )
 
     return seeds, pd.concat([e_in, e_sampled]), e_out
+
+
+spikyball = PlugIn(
+    callable=spikyball_strategy, default_configuration={}, tables={}, metadata={}
+)

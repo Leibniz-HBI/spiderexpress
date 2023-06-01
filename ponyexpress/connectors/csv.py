@@ -4,7 +4,7 @@ from typing import Dict, List, Optional, Union
 
 import pandas as pd
 
-from ponyexpress.types import fromdict
+from ponyexpress.types import PlugIn, fromdict
 
 
 @dataclasses.dataclass
@@ -47,3 +47,15 @@ def csv_connector(
         if nodes is not None
         else pd.DataFrame(),
     )
+
+
+csv = PlugIn(
+    default_configuration={
+        "edge_list_location": "",
+        "node_list_location": "",
+        "mode": "in",
+    },
+    callable=csv_connector,
+    tables={"edges": {}, "nodes": {}},
+    metadata={},
+)
