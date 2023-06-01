@@ -40,6 +40,8 @@ csv = "ponyexpress.connectors.csv:csv_connector"
 [tool.poetry.plugins."ponyexpress.strategies"]
 spikyball = "ponyexpress.strategies.spikyball:spikyball_strategy"
 random = "ponyexpress.strategies.random:random_strategy"
+snowball = "ponyexpress.strategies.snowball.snowball_strategy"
+
 
 [tool.pytest.ini_options]
 addopts = "--cov-report html:tests/coverage --cov=ponyexpress --capture=sys"
