@@ -150,7 +150,6 @@ class Spider:
     """List of transitions the spider can make."""
 
     def __init__(self, auto_transitions=True) -> None:
-
         self.machine = Machine(
             self,
             states=Spider.states,
