@@ -43,7 +43,10 @@ def get_plugin(spec: PlugInSpec, group: str) -> Callable:
 
 @get_plugin.register(str)
 def _(spec: str, group: str) -> Callable:
-    return _access_entry_point(spec, group)
+    plugin = _access_entry_point(spec, group)
+    if not plugin:
+        raise ValueError(f"{ spec } could not be found in { group }")
+    return plugin.callable
 
 
 @get_plugin.register(dict)
@@ -54,9 +57,10 @@ def _(spec: dict, group: str) -> Callable:
             "Using the first instance found"
         )
     for name, configuration in spec.items():
-        return functools.partial(
-            _access_entry_point(name, group), configuration=configuration
-        )
+        plugin = _access_entry_point(name, group)
+        if not plugin:
+            raise ValueError(f"{spec} could not be found in {group}")
+        return functools.partial(plugin.callable, configuration=configuration)
 
 
 def get_default_configuration(name: str, group: str):  # pylint: disable=W0613
