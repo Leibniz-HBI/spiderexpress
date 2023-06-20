@@ -72,6 +72,19 @@ def get_default_configuration(name: str, group: str):  # pylint: disable=W0613
     """
 
 
+def get_table_configuration(name: str, group: str):  # pylint: disable=W0613
+    """Get the table configuration for a plug-in.
+
+    Args:
+        name: the plug-in to get
+        group: the group to retrieve from
+    """
+    plugin = _access_entry_point(name, group)
+    if not plugin:
+        raise ValueError(f"{name} could not be found in {group}")
+    return plugin.tables
+
+
 def list_plugins(group: str, metadata: bool = True):  # pylint: disable=W0613
     """List all plug-ins in a group.
 

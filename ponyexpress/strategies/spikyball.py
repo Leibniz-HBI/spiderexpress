@@ -296,9 +296,9 @@ def filter_edges(
 def spikyball_strategy(
     edges: pd.DataFrame,
     nodes: pd.DataFrame,
-    known_nodes: List[str],
+    state: pd.DataFrame,
     configuration: Union[SpikyBallConfiguration, Dict],
-) -> Tuple[List[str], pd.DataFrame, pd.DataFrame]:
+) -> Tuple[List[str], pd.DataFrame, pd.DataFrame, pd.DataFrame]:
     """
 
     See [this paper](https://arxiv.org/abs/2010.11786).
@@ -321,17 +321,21 @@ def spikyball_strategy(
     if isinstance(configuration, dict):
         configuration = fromdict(SpikyBallConfiguration, configuration)
 
-    e_in, e_out = filter_edges(edges, known_nodes)
+    e_in, e_out = filter_edges(edges, state.node_id.tolist())
     seeds, e_sampled = sample_edges(
         e_out,
         nodes,
         configuration.sampler,
         configuration.layer_max_size,
     )
+    state = pd.concat([state, pd.DataFrame({"node_id": seeds})])
 
-    return seeds, pd.concat([e_in, e_sampled]), e_out
+    return seeds, pd.concat([e_in, e_sampled]), e_out, state
 
 
 spikyball = PlugIn(
-    callable=spikyball_strategy, default_configuration={}, tables={}, metadata={}
+    callable=spikyball_strategy,
+    default_configuration={},
+    tables={"node_id": "Text"},
+    metadata={},
 )

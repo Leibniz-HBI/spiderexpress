@@ -6,6 +6,7 @@ import datetime
 from typing import Any, Callable, Dict, List, Tuple, Type
 
 import sqlalchemy as sql
+from loguru import logger as log
 from sqlalchemy import orm
 
 # pylint: disable=R0903
@@ -70,6 +71,10 @@ def create_factory(
     cls: Type[Any], spec_fixed: List[sql.Column], spec_variadic: Dict[str, Any]
 ) -> Callable:
     """Create a factory function for a given class."""
+
+    log.info(
+        f"Creating factory for {cls.__name__} with {spec_fixed} and {spec_variadic}"
+    )
 
     def _(data: Dict[str, Any]) -> Type[Any]:
         return cls(
@@ -204,3 +209,26 @@ def create_node_table(
     mapper_registry.map_imperatively(Node, table)
 
     return table, Node, create_factory(Node, spec_fixed, spec_variadic)
+
+
+def create_sampler_state_table(
+    name: str, spec_variadic: Dict[str, str]
+) -> Tuple[sql.Table, Type["SamplerState"], Callable]:
+    """Create a sampler state table dynamically."""
+
+    table = sql.Table(
+        name,
+        Base.metadata,
+        sql.Column("id", sql.Integer, primary_key=True, index=True, autoincrement=True),
+        *[
+            sql.Column(key, type_lookup.get(value))
+            for key, value in spec_variadic.items()
+        ],
+    )
+
+    class SamplerState:
+        """Sampler state."""
+
+    mapper_registry.map_imperatively(SamplerState, table)
+
+    return table, SamplerState, create_factory(SamplerState, [], spec_variadic)

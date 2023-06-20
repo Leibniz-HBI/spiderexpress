@@ -18,36 +18,18 @@ import yaml
 Connector = Callable[[List[str]], Tuple[pd.DataFrame, pd.DataFrame]]
 """Connector Interface
 
-args:
+Args:
+    node_names (List[str]): nodes to get information on
 
-    node_names : List[str] : nodes to get information on
-
-returns:
-
+Returns:
     An edge table with new edges (these will be persisted into the dense edge-table).
     A node table with information on the requested nodes.
 """
 Strategy = Callable[
-    [pd.DataFrame, pd.DataFrame, List[str]],
-    Tuple[List[str], pd.DataFrame, pd.DataFrame],
+    [pd.DataFrame, pd.DataFrame, pd.DataFrame],
+    Tuple[List[str], pd.DataFrame, pd.DataFrame, pd.DataFrame],
 ]
-"""Strategy Interface
-
-args:
-    edges : DataFrame : edges table
-
-    nodes : DataFrame : nodes table
-
-    known_nodes : List[str] : known node names
-
-returns:
-
-    1. a list of new seed nodes in a list of node names
-
-    2. DataFrame with new edges that needs to be added to the network
-
-    3. DataFrame with new nodes that needs to be added to the network
-"""
+"""Strategy Interface"""
 PlugInSpec = Union[str, Dict[str, Union[str, Dict[str, Union[str, int]]]]]
 """Plug-In Definition Notation.
 

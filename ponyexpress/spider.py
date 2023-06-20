@@ -30,8 +30,9 @@ from ponyexpress.model import (
     create_aggregated_edge_table,
     create_node_table,
     create_raw_edge_table,
+    create_sampler_state_table,
 )
-from ponyexpress.plugin_manager import get_plugin
+from ponyexpress.plugin_manager import get_plugin, get_table_configuration
 from ponyexpress.types import Configuration, Connector, Strategy
 
 # pylint: disable=W0613,E1101,C0103
@@ -42,8 +43,13 @@ STRATEGY_GROUP = "ponyexpress.strategies"
 
 MAX_RETRIES = 3
 
-Node, RawEdge, AggEdge = None, None, None
-node_factory, raw_edge_factory, agg_edge_factory = None, None, None
+Node, RawEdge, AggEdge, SamplerState = None, None, None, None
+node_factory, raw_edge_factory, agg_edge_factory, sampler_state_factory = (
+    None,
+    None,
+    None,
+    None,
+)
 
 
 class Spider:
@@ -236,7 +242,9 @@ class Spider:
 
     def open_database(self, *args) -> None:
         """Opens the database and initializes the ORM if necessary."""
-        global Node, RawEdge, AggEdge, node_factory, raw_edge_factory, agg_edge_factory  # pylint: disable=W0603
+        # pylint: disable=W0603
+        global Node, RawEdge, AggEdge, SamplerState
+        global node_factory, raw_edge_factory, agg_edge_factory, sampler_state_factory
 
         if not self.configuration:
             raise ValueError("No configuration loaded.")
@@ -270,6 +278,16 @@ class Spider:
         _, AggEdge, agg_edge_factory = create_aggregated_edge_table(
             self.configuration.edge_agg_table["name"],
             self.configuration.edge_agg_table["columns"],
+        )
+
+        strategy_name = (
+            self.configuration.strategy
+            if isinstance(self.configuration.strategy, str)
+            else list(self.configuration.strategy.keys())[0]
+        )
+
+        _, SamplerState, sampler_state_factory = create_sampler_state_table(
+            strategy_name, get_table_configuration(strategy_name, STRATEGY_GROUP)
         )
 
         Base.metadata.create_all(engine)
@@ -497,25 +515,28 @@ class Spider:
         nodes = pd.read_sql(
             self._cache_.query(Node).statement, self._cache_.connection()
         )
-        known_nodes = self._cache_.execute(sql.select(SeedList.id)).scalars().all()
+        sampler_state = pd.read_sql(sql.select(SamplerState), self._cache_.connection())
 
         log.info(
             f"""Sampling from {
             len(edges)
         } edges with {
             len(nodes)
-        } nodes, whereas {
-            len(known_nodes)
-        } nodes are known already."""
+        } nodes while the sampler's state is { len(sampler_state) } long."""
         )
 
-        new_seeds, new_edges, _ = self.strategy(edges, nodes, known_nodes)
+        log.info(f"That's the current state of affairs: { sampler_state }")
+
+        new_seeds, new_edges, _, new_sampler_state = self.strategy(
+            edges, nodes, sampler_state
+        )
 
         new_edges["iteration"] = self.appstate.iteration
 
         if len(new_seeds) == 0:
             log.warning("Found no new seeds.")
         elif self.retry_count > 0:
+            # We found new seeds and can reset the retry counter.
             self.retry_count = 0
 
         for seed in new_seeds:
@@ -534,6 +555,9 @@ class Spider:
                 if edge["source"] is not None and edge["target"] is not None
             ]
         )
+        for state in new_sampler_state.to_dict(orient="records"):
+            self._cache_.merge(SamplerState(**state))
+
         self._cache_.commit()
 
     def load_plugins(self, *args):
