@@ -1,7 +1,5 @@
 """Snowball sampling strategy."""
 
-from typing import List
-
 import pandas as pd
 
 from ponyexpress.types import PlugIn
@@ -10,15 +8,14 @@ from ponyexpress.types import PlugIn
 def snowball_strategy(
     edges: pd.DataFrame,
     nodes: pd.DataFrame,
-    known_nodes: List[str],
+    state: pd.DataFrame,
 ):
     """Random sampling strategy."""
     # split the edges table into edges _inside_ and _outside_ of the known network
-    mask = edges.target.isin(known_nodes)
+    mask = edges.target.isin(state.node_id)
     edges_inward = edges.loc[mask, :]
     edges_outward = edges.loc[~mask, :]
 
-    # select 10 edges to follow
     edges_sampled = edges_outward.copy()
 
     new_seeds = (
@@ -34,5 +31,10 @@ def snowball_strategy(
 
 
 snowball = PlugIn(
-    callable=snowball_strategy, default_configuration=None, metadata={}, tables={}
+    callable=snowball_strategy,
+    default_configuration=None,
+    metadata={},
+    tables={
+        "node_id": "Text",
+    },
 )

@@ -1,6 +1,6 @@
 """Random sampling strategy."""
 
-from typing import Any, Dict, List
+from typing import Any, Dict
 
 import pandas as pd
 
@@ -10,12 +10,12 @@ from ponyexpress.types import PlugIn
 def random_strategy(
     edges: pd.DataFrame,
     nodes: pd.DataFrame,
-    known_nodes: List[str],
+    state: pd.DataFrame,
     configuration: Dict[str, Any],
 ):
     """Random sampling strategy."""
     # split the edges table into edges _inside_ and _outside_ of the known network
-    mask = edges.target.isin(known_nodes)
+    mask = edges.target.isin(state.node_id)
     edges_inward = edges.loc[mask, :]
     edges_outward = edges.loc[~mask, :]
 
@@ -35,5 +35,8 @@ def random_strategy(
 
 
 random = PlugIn(
-    callable=random_strategy, tables={}, metadata={}, default_configuration={"n": 10}
+    callable=random_strategy,
+    tables={"node_": "Text"},
+    metadata={},
+    default_configuration={"n": 10},
 )
