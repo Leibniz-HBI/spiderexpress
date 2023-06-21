@@ -7,9 +7,6 @@ CONNECTOR_GROUP :
 
 STRATEGY_GROUP :
     str : group name of our strategy entrypoint
-
-Todo:
-- nicer way to pass around the dynamic ORM classes
 """
 from datetime import datetime
 from pathlib import Path
@@ -42,9 +39,8 @@ STRATEGY_GROUP = "ponyexpress.strategies"
 
 MAX_RETRIES = 3
 
-Node, RawEdge, AggEdge = None, None, None
-node_factory, raw_edge_factory, agg_edge_factory = None, None, None
-
+factory_registry = {}
+class_registry = {}
 
 class Spider:
     """This is ponyexpress' Spider.
@@ -236,7 +232,6 @@ class Spider:
 
     def open_database(self, *args) -> None:
         """Opens the database and initializes the ORM if necessary."""
-        global Node, RawEdge, AggEdge, node_factory, raw_edge_factory, agg_edge_factory  # pylint: disable=W0603
 
         if not self.configuration:
             raise ValueError("No configuration loaded.")
@@ -271,6 +266,14 @@ class Spider:
             self.configuration.edge_agg_table["name"],
             self.configuration.edge_agg_table["columns"],
         )
+
+        class_registry["node"] = Node
+        class_registry["raw_edge"] = RawEdge
+        class_registry["agg_edge"] = AggEdge
+
+        factory_registry["node"] = node_factory
+        factory_registry["raw_edge"] = raw_edge_factory
+        factory_registry["agg_edge"] = agg_edge_factory
 
         Base.metadata.create_all(engine)
 
@@ -307,19 +310,19 @@ class Spider:
                 self._add_task(_seed)
 
     def _add_task(
-        self, task: Union[SeedList, Node, str], parent: Optional[TaskList] = None
+        self, task: Union[SeedList, str], parent: Optional[TaskList] = None
     ):
         """Adds a task to the task buffer."""
         if not self._cache_:
             raise ValueError("Cache is not present.")
-        if not isinstance(task, (SeedList, Node, str)):
+        if not isinstance(task, (SeedList, class_registry["node"], str)):
             raise ValueError(
                 "Task must be a seed, a node or a node-identifier, but is {type(task).__name__}"
             )
 
         node_id = (
             task.name
-            if isinstance(task, Node)
+            if isinstance(task, class_registry["node"])
             else task
             if isinstance(task, str)
             else task.id
@@ -381,7 +384,7 @@ class Spider:
 
         candidates = (
             self._cache_.execute(
-                sql.select(Node.name).where(Node.name.not_in(candidate_nodes_names))
+                sql.select(class_registry["node"].name).where(class_registry["node"].name.not_in(candidate_nodes_names))
             )
             .scalars()
             .all()
@@ -412,8 +415,6 @@ class Spider:
         """Gathers node data for the first task in queue."""
         if not self._cache_:
             raise ValueError("Cache is not present.")
-        if Node is None:
-            raise ValueError("Node table is not present.")
         # If there are no tasks left, return early to advance to aggregation state
         if len(self.task_buffer) == 0:
             return
@@ -423,7 +424,7 @@ class Spider:
         log.debug(f"Attempting to gather data for {task.node_id}.")
 
         # Begin transaction with the cache
-        node_info = self._cache_.get(Node, task.node_id)
+        node_info = self._cache_.get(class_registry["node"], task.node_id)
 
         if node_info is None:
             self._dispatch_connector_for_node_(task)
@@ -453,10 +454,6 @@ class Spider:
         """Samples the network."""
         if not self._cache_:
             raise ValueError("Cache is not present.")
-        if Node is None:
-            raise ValueError("Node table is not present.")
-        if AggEdge is None:
-            raise ValueError("Aggregated edge table is not present.")
 
         log.debug("Attempting to sample the network.")
 
@@ -474,17 +471,17 @@ class Spider:
                 "weight"
             ),
             *[
-                aggregation_funcs[aggregation](getattr(RawEdge, column)).label(column)
+                aggregation_funcs[aggregation](getattr(class_registry["raw_edge"], column)).label(column)
                 for column, aggregation in aggregation_spec.items()
             ],
         ]
         sql_statement = (
             self._cache_.query(
-                RawEdge.source,
-                RawEdge.target,
+                class_registry["raw_edge"].source,
+                class_registry["raw_edge"].target,
                 *aggregations,
             )
-            .group_by(RawEdge.source, RawEdge.target)
+            .group_by(class_registry["raw_edge"].source, class_registry["raw_edge"].target)
             .statement
         )
 
@@ -495,7 +492,7 @@ class Spider:
             self._cache_.connection(),
         )
         nodes = pd.read_sql(
-            self._cache_.query(Node).statement, self._cache_.connection()
+            self._cache_.query(class_registry["node"]).statement, self._cache_.connection()
         )
         known_nodes = self._cache_.execute(sql.select(SeedList.id)).scalars().all()
 
@@ -529,7 +526,7 @@ class Spider:
                 self._add_task(_seed)
         self._cache_.add_all(
             [
-                agg_edge_factory(edge)
+                factory_registry["agg_edge"](edge)
                 for edge in new_edges.to_dict(orient="records")
                 if edge["source"] is not None and edge["target"] is not None
             ]
@@ -564,7 +561,7 @@ class Spider:
             )
             edges["iteration"] = self.appstate.iteration
             for edge in edges.to_dict(orient="records"):
-                self._cache_.merge(raw_edge_factory(edge))
+                self._cache_.merge(factory_registry["raw_edge"](edge))
 
             if self.configuration.eager is True and node.parent_task_id is None:
                 #  We add only new task if the parent_task_id is None to avoid snowballing
@@ -575,5 +572,5 @@ class Spider:
         if len(nodes) > 0:
             nodes["iteration"] = self.appstate.iteration
             for _node in nodes.to_dict(orient="records"):
-                self._cache_.merge(node_factory(_node))
+                self._cache_.merge(factory_registry["node"](_node))
             self._cache_.commit()
