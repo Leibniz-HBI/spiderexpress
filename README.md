@@ -573,7 +573,7 @@ This software uses [poetry](https://python-poetry.org/) as a package management 
 2. Clone this repository.
 3. `cd` into the newly created repositories' folder.
 4. Install all dependencies with `poetry install`.
-5. To open virtual environment, run `poetry shell`.
+5. To enter the virtual environment, run `poetry shell`.
 6. To run the test suite, run `pytest` inside the virtual environments shell.
 7. To run this program, run `ponyexpress`.
 
