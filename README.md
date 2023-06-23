@@ -315,12 +315,10 @@ connector:
 > In the current implementation the tables are reread on each call of the connector, thus,
 > loading large networks will lead to long loading times.
 
-### Telegram connector
+### Other connectors
 
-This connector scrapes network data from public Telegram channels.
-Currently, it returns forwarded messages for the last 20 messages per channel.
-
-> **Note**: No configuration can be supplied at this time. Although an overhaul is on the roadmap.
+- **Telegram**: A connector scrapes the latest messages of a Telegram's channel public website. Find it [on GitHub](https://github.com/Leibniz-HBI/ponyexpress-telegram).
+- **Twitter**: A connector to retrieve followers, friends and other things from Twitter. Find it [on GitHub](https://github.com/Leibniz-HBI/ponyexpress-twitter).
 
 ## Included Strategies
 
@@ -566,6 +564,18 @@ def csv_connector(
         else pd.DataFrame(),
     )
 ```
+
+## Deveplopment Installation
+
+This software uses [poetry](https://python-poetry.org/) as a package management solution. In order to install all dependencies:
+
+1. Have `poetry` installed.
+2. Clone this repository.
+3. `cd` into the newly created repositories' folder.
+4. Install all dependencies with `poetry install`.
+5. To enter the virtual environment, run `poetry shell`.
+6. To run the test suite, run `pytest` inside the virtual environments shell.
+7. To run this program, run `ponyexpress`.
 
 ---
 
