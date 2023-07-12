@@ -2,6 +2,7 @@
 import pytest
 
 from ponyexpress.connectors import csv_connector
+from ponyexpress.connectors.csv import _cache
 
 # pylint: disable=redefined-outer-name
 
@@ -50,3 +51,10 @@ def test_retrieval_modes(mode, shape, seventh_grader_configuration):
     assert edges.shape == shape
     assert nodes.empty is False
     assert len(nodes.index) == 2
+
+def test_caching(seventh_grader_configuration):
+    """Should correctly cache the edges and nodes."""
+    seventh_grader_configuration["cache"] = True
+    _, _ = csv_connector(["1", "13"], seventh_grader_configuration)
+
+    assert seventh_grader_configuration["edge_list_location"] in _cache
