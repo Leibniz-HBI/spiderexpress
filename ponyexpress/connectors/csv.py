@@ -30,13 +30,13 @@ def csv_connector(
             _cache[configuration.edge_list_location] = pd.read_csv(
                 configuration.edge_list_location, dtype=str
             )
-        edges = _cache[configuration.edge_list_location]
+        edges = _cache[configuration.edge_list_location].copy()
         if configuration.node_list_location:
             if configuration.node_list_location not in _cache:
                 _cache[configuration.node_list_location] = pd.read_csv(
                     configuration.node_list_location, dtype=str
                 )
-            nodes = _cache[configuration.node_list_location]
+            nodes = _cache[configuration.node_list_location].copy()
         else:
             nodes = None
     else:
