@@ -10,7 +10,7 @@ STRATEGY_GROUP :
 """
 from datetime import datetime
 from pathlib import Path
-from typing import Optional, Union
+from typing import Any, Dict, Optional, Union
 
 import pandas as pd
 import sqlalchemy as sql
@@ -41,6 +41,7 @@ MAX_RETRIES = 3
 
 factory_registry = {}
 class_registry = {}
+
 
 class Spider:
     """This is ponyexpress' Spider.
@@ -144,7 +145,11 @@ class Spider:
     ]
     """List of transitions the spider can make."""
 
-    def __init__(self, auto_transitions=True) -> None:
+    def __init__(
+        self,
+        auto_transitions=True,
+        configuration: Optional[Union[Dict[str, Any], Configuration]] = None,
+    ) -> None:
         self.machine = Machine(
             self,
             states=Spider.states,
@@ -217,12 +222,21 @@ class Spider:
         params:
           config_file: Path: the configuration to load
         """
-        log.debug(f"Attempting to load project from {config_file}.")
-        if not config_file.exists():
-            raise FileNotFoundError(f"Configuration file {config_file} does not exist.")
+        if self.configuration is None:
+            log.debug(f"Attempting to load project from {config_file}.")
+            if not config_file.exists():
+                raise FileNotFoundError(
+                    f"Configuration file {config_file} does not exist."
+                )
 
-        with config_file.open("r", encoding="utf8") as file:
-            self.configuration = yaml.full_load(file)
+            with config_file.open("r", encoding="utf8") as file:
+                self.configuration = yaml.full_load(file)
+        else:
+            self.configuration = (
+                self.configuration
+                if isinstance(self.configuration, Configuration)
+                else Configuration(**self.configuration)
+            )
 
     def is_config_valid(self):
         """Asserts that the configuration is valid."""
@@ -309,9 +323,7 @@ class Spider:
                 self._cache_.add(_seed)
                 self._add_task(_seed)
 
-    def _add_task(
-        self, task: Union[SeedList, str], parent: Optional[TaskList] = None
-    ):
+    def _add_task(self, task: Union[SeedList, str], parent: Optional[TaskList] = None):
         """Adds a task to the task buffer."""
         if not self._cache_:
             raise ValueError("Cache is not present.")
@@ -322,7 +334,7 @@ class Spider:
 
         node_id = (
             task.name
-            if isinstance(task, class_registry["node"])
+            if isinstance(task, (class_registry["node"]))
             else task
             if isinstance(task, str)
             else task.id
@@ -384,7 +396,9 @@ class Spider:
 
         candidates = (
             self._cache_.execute(
-                sql.select(class_registry["node"].name).where(class_registry["node"].name.not_in(candidate_nodes_names))
+                sql.select(class_registry["node"].name).where(
+                    class_registry["node"].name.not_in(candidate_nodes_names)
+                )
             )
             .scalars()
             .all()
@@ -471,7 +485,9 @@ class Spider:
                 "weight"
             ),
             *[
-                aggregation_funcs[aggregation](getattr(class_registry["raw_edge"], column)).label(column)
+                aggregation_funcs[aggregation](
+                    getattr(class_registry["raw_edge"], column)
+                ).label(column)
                 for column, aggregation in aggregation_spec.items()
             ],
         ]
@@ -481,7 +497,9 @@ class Spider:
                 class_registry["raw_edge"].target,
                 *aggregations,
             )
-            .group_by(class_registry["raw_edge"].source, class_registry["raw_edge"].target)
+            .group_by(
+                class_registry["raw_edge"].source, class_registry["raw_edge"].target
+            )
             .statement
         )
 
@@ -492,7 +510,8 @@ class Spider:
             self._cache_.connection(),
         )
         nodes = pd.read_sql(
-            self._cache_.query(class_registry["node"]).statement, self._cache_.connection()
+            self._cache_.query(class_registry["node"]).statement,
+            self._cache_.connection(),
         )
         known_nodes = self._cache_.execute(sql.select(SeedList.id)).scalars().all()
 
