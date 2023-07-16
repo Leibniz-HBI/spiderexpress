@@ -8,6 +8,7 @@ from ponyexpress.types import PlugIn, fromdict
 
 _cache = {}
 
+
 @dataclasses.dataclass
 class CSVConnectorConfiguration:
     """Configuration items for the csv_connector."""
@@ -15,16 +16,11 @@ class CSVConnectorConfiguration:
     edge_list_location: str
     mode: str
     node_list_location: Optional[str] = None
+    return_neighbour_info: Optional[bool] = None
     cache: bool = True
 
 
-def csv_connector(
-    node_ids: List[str], configuration: Union[Dict, CSVConnectorConfiguration]
-) -> Tuple[pd.DataFrame, pd.DataFrame]:
-    """The CSV connector!"""
-    if isinstance(configuration, dict):
-        configuration = fromdict(CSVConnectorConfiguration, configuration)
-
+def _cache_or_not(configuration: CSVConnectorConfiguration):
     if configuration.cache:
         if configuration.edge_list_location not in _cache:
             _cache[configuration.edge_list_location] = pd.read_csv(
@@ -47,6 +43,18 @@ def csv_connector(
             else None
         )
 
+    return edges, nodes
+
+
+def csv_connector(
+    node_ids: List[str], configuration: Union[Dict, CSVConnectorConfiguration]
+) -> Tuple[pd.DataFrame, pd.DataFrame]:
+    """The CSV connector!"""
+    if isinstance(configuration, dict):
+        configuration = fromdict(CSVConnectorConfiguration, configuration)
+
+    edges, nodes = _cache_or_not(configuration)
+
     if configuration.mode == "in":
         mask = edges["target"].isin(node_ids)
     elif configuration.mode == "out":
@@ -58,12 +66,17 @@ def csv_connector(
 
     # Filter edges that contain our input nodes
     edge_return: pd.DataFrame = edges.loc[mask]
-
+    node_return: Optional[pd.DataFrame] = None
+    if nodes is not None:
+        nodes_to_retrieve = [node_ids]
+        if configuration.return_neighbour_info:
+            nodes_to_retrieve.extend(edge_return.target.unique().tolist())
+        node_return = nodes.loc[nodes.name.isin(node_ids), :]
+    else:
+        node_return = pd.DataFrame()
     return (
         edge_return,
-        nodes.loc[nodes.name.isin(node_ids), :]
-        if nodes is not None
-        else pd.DataFrame(),
+        node_return,
     )
 
 
