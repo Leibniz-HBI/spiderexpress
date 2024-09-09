@@ -2,7 +2,7 @@
 
 A multipurpose network sampling tool.
 
-![Image of Ponyexpress](assets/ponyexpress.jpeg)
+![Image of spiderexpress](assets/ponyexpress.jpeg)
 
 >   Traversing the deserts of the internet.
 
@@ -29,7 +29,7 @@ A multipurpose network sampling tool.
   * [Included Strategies](#included-strategies)
     * [Spikyball Sampler](#spikyball-sampler)
     * [Random Sampler](#random-sampler)
-  * [Extending Ponyexpress](#extending-ponyexpress)
+  * [Extending spiderexpress](#extending-spiderexpress)
     * [Connector Specification](#connector-specification)
     * [Strategy Specification](#strategy-specification)
     * [Additional Parameters and Configurability](#additional-parameters-and-configurability)
@@ -39,12 +39,12 @@ A multipurpose network sampling tool.
 
 ## Installation
 
-In order to use `ponyexpress` you need to have Python 3.8 or higher and poetry installed on your system.
+In order to use `spiderexpress` you need to have Python 3.8 or higher and poetry installed on your system.
 
-1. Clone the repository `git clone https://github.com/Leibniz-HBI/ponyexpress.git`.
-2. Install the dependencies `cd ponyexpress` and `poetry install`.
+1. Clone the repository `git clone https://github.com/Leibniz-HBI/spiderexpress.git`.
+2. Install the dependencies `cd spiderexpress` and `poetry install`.
 3. Activate the virtual environment `poetry shell`
-4. Run the CLI `ponyexpress --help`.
+4. Run the CLI `spiderexpress --help`.
 
 In the future we will provide a PyPI package which will make the installation process much easier.
 
@@ -68,7 +68,7 @@ Commands:
 
 ### create
 
-This command creates a `ponyexpress` project in the current directory.
+This command creates a `spiderexpress` project in the current directory.
 By default, the project creation process will be interactive, but this can be disabled by passing the `--non-interactive` flag.
 
 ```bash
@@ -82,7 +82,7 @@ Options:
 
 ### start
 
-This command starts a `ponyexpress` job with the given configuration file.
+This command starts a `spiderexpress` job with the given configuration file.
 
 ```bash
 Usage: spiderexpress start [OPTIONS] CONFIG
@@ -94,7 +94,7 @@ Options:
 ```
 ### Project set up
 
-A `ponyexpress` project could for example look like this:
+A `spiderexpress` project could for example look like this:
 
 ```tree
 ├── my_project
@@ -109,7 +109,7 @@ For example projects, please refer to the `examples` directory or the unit tests
 
 ## Configuration
 
-`Ponyexpress` utilizes YAML de-/serialization for its configuration file. As such, initializing a project is as easy as: running `$ ponyexpress create` and a pleasurable and comforting dialogue prompt will guide you through the process.
+`spiderexpress` utilizes YAML de-/serialization for its configuration file. As such, initializing a project is as easy as: running `$ spiderexpress create` and a pleasurable and comforting dialogue prompt will guide you through the process.
 
 The resulting file could look like something like this example:
 
@@ -206,7 +206,7 @@ erDiagram
 
 The edges of the network are kept in two tables: *edges_raw* and *edges_agg*,
 whereas in the aggregated table only sampled edges are persisted and the raw table
-includes all edges ponyexpress collected in the process.
+includes all edges spiderexpress collected in the process.
 
 The following table informs about the minimally necessary columns it will create,
 although more metadata can be stored in the table.
@@ -237,7 +237,7 @@ edge_raw_table:
 #### Aggregated Edges
 
 As the name suggests in this the aggregated, simple edges are kept and persisted after sampling.
-The following table informs about the minimally available columns `ponyexpress` will create.
+The following table informs about the minimally available columns `spiderexpress` will create.
 
 | **Column Name** | **Description**                             |
 |-----------------|---------------------------------------------|
@@ -301,7 +301,7 @@ Required configuration are the following key-value-pairs:
 | mode               | either "in", "out" or "both", determines which edges to emit. |
 
 
-Information must be given in the `ponyexpress`-project configuration file, e.g. consider the following configuration snippet:
+Information must be given in the `spiderexpress`-project configuration file, e.g. consider the following configuration snippet:
 
 ```yaml
 connector:
@@ -317,8 +317,8 @@ connector:
 
 ### Other connectors
 
-- **Telegram**: A connector scrapes the latest messages of a Telegram's channel public website. Find it [on GitHub](https://github.com/Leibniz-HBI/ponyexpress-telegram).
-- **Twitter**: A connector to retrieve followers, friends and other things from Twitter. Find it [on GitHub](https://github.com/Leibniz-HBI/ponyexpress-twitter).
+- **Telegram**: A connector scrapes the latest messages of a Telegram's channel public website. Find it [on GitHub](https://github.com/Leibniz-HBI/spiderexpress-telegram).
+- **Twitter**: A connector to retrieve followers, friends and other things from Twitter. Find it [on GitHub](https://github.com/Leibniz-HBI/spiderexpress-twitter).
 
 ## Included Strategies
 
@@ -368,12 +368,12 @@ This strategy samples implements a random sampling of the network's edges (and i
 
 ----
 
-## Extending Ponyexpress
+## Extending spiderexpress
 
-`Ponyexpress` is extensible via plug-ins and sports two `setuptools`entry points to register plug-ins with:
+`spiderexpress` is extensible via plug-ins and sports two `setuptools`entry points to register plug-ins with:
 
-- `ponyexpress.connectors` under which a connector may be registered, i.e. a program that retrieves and returns *new* data from a data source.
-- `ponyexpress.strategies` under which sampling strategies may be registered.
+- `spiderexpress.connectors` under which a connector may be registered, i.e. a program that retrieves and returns *new* data from a data source.
+- `spiderexpress.strategies` under which sampling strategies may be registered.
 
 ### Connector Specification
 
@@ -522,7 +522,7 @@ return (
 )
 ```
 
-And now: all together now! A complete implementation of the CSV connector is shown below; a more involved implementation is provided in the `ponyexpress.connectors.csv` module in the [connectors' directory](spiderexpress/connectors).
+And now: all together now! A complete implementation of the CSV connector is shown below; a more involved implementation is provided in the `spiderexpress.connectors.csv` module in the [connectors' directory](spiderexpress/connectors).
 
 ```python
 from typing import Dict, List
@@ -575,7 +575,7 @@ This software uses [poetry](https://python-poetry.org/) as a package management 
 4. Install all dependencies with `poetry install`.
 5. To enter the virtual environment, run `poetry shell`.
 6. To run the test suite, run `pytest` inside the virtual environments shell.
-7. To run this program, run `ponyexpress`.
+7. To run this program, run `spiderexpress`.
 
 ---
 
