@@ -1,4 +1,4 @@
-# ponyexpress
+# spiderexpress
 
 A multipurpose network sampling tool.
 
@@ -9,7 +9,7 @@ A multipurpose network sampling tool.
 ## Table of Contents
 
 <!-- TOC -->
-* [ponyexpress](#ponyexpress)
+* [spiderexpress](#spiderexpress)
   * [Table of Contents](#table-of-contents)
   * [Installation](#installation)
   * [Usage](#usage)
