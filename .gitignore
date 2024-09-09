@@ -152,5 +152,5 @@ notebooks/
 # VS Code file
 .vscode/
 
-# ponyexpress files
+# spiderexpress files
 *.pe.yml

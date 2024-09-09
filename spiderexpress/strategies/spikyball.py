@@ -1,4 +1,4 @@
-"""spikyball sampling for ponyexpress
+"""spikyball sampling for spiderexpress
 
 ToDo:
   - Nope?

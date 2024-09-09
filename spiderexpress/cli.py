@@ -1,4 +1,4 @@
-"""Command Line Interface definitions for ponyexpress.
+"""Command Line Interface definitions for spiderexpress.
 
 Author
 ------
@@ -60,8 +60,8 @@ def create(config: str, interactive: bool):
 def list():  # pylint: disable=W0622
     """list all plugins"""
     click.echo("--- connectors ---", color="blue")
-    for connector in entry_points().get(CONNECTOR_GROUP, []):
+    for connector in entry_points(group=CONNECTOR_GROUP):
         click.echo(connector.name)
     click.echo("--- strategies ---")
-    for strategy in entry_points().get(STRATEGY_GROUP, []):
+    for strategy in entry_points(group=STRATEGY_GROUP):
         click.echo(strategy.name)

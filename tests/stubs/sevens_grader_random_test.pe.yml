@@ -1,4 +1,4 @@
-!ponyexpress:Configuration
+!spiderexpress:Configuration
 batch_size: 150
 connector:
   csv:

@@ -1,4 +1,4 @@
-"""Test suite for ponyexpress.Spider
+"""Test suite for spiderexpress.Spider
 
 This is the main application, it should load the config, dispatch jobs and keep
 track of its state, handle database connections and manage set up and tear down.
@@ -10,7 +10,7 @@ from pathlib import Path
 
 from pytest import skip
 
-from ponyexpress.spider import Spider
+from spiderexpress.spider import Spider
 
 
 def test_config_discover():

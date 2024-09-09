@@ -53,8 +53,8 @@ In the future we will provide a PyPI package which will make the installation pr
 
 
 ```bash
-$ ponyexpress --help
-Usage: ponyexpress [OPTIONS] COMMAND [ARGS]...
+$ spiderexpress --help
+Usage: spiderexpress [OPTIONS] COMMAND [ARGS]...
 
   Traverse the deserts of the internet.
 
@@ -72,7 +72,7 @@ This command creates a `ponyexpress` project in the current directory.
 By default, the project creation process will be interactive, but this can be disabled by passing the `--non-interactive` flag.
 
 ```bash
-Usage: ponyexpress create [OPTIONS] CONFIG
+Usage: spiderexpress create [OPTIONS] CONFIG
 
   create a new configuration
 
@@ -85,7 +85,7 @@ Options:
 This command starts a `ponyexpress` job with the given configuration file.
 
 ```bash
-Usage: ponyexpress start [OPTIONS] CONFIG
+Usage: spiderexpress start [OPTIONS] CONFIG
 
   start a job
 
@@ -522,7 +522,7 @@ return (
 )
 ```
 
-And now: all together now! A complete implementation of the CSV connector is shown below; a more involved implementation is provided in the `ponyexpress.connectors.csv` module in the [connectors' directory](ponyexpress/connectors).
+And now: all together now! A complete implementation of the CSV connector is shown below; a more involved implementation is provided in the `ponyexpress.connectors.csv` module in the [connectors' directory](spiderexpress/connectors).
 
 ```python
 from typing import Dict, List

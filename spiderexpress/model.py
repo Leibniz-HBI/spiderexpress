@@ -1,4 +1,4 @@
-"""Definitions for the ponyexpress ORM-model.
+"""Definitions for the spiderexpress ORM-model.
 
 It keeps track of the crawled data, the configuration and the current state of the crawler.
 """

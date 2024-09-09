@@ -4,7 +4,7 @@ from typing import Dict, List, Optional, Tuple, Union
 
 import pandas as pd
 
-from ponyexpress.types import PlugIn, fromdict
+from spiderexpress.types import PlugIn, fromdict
 
 _cache = {}
 
