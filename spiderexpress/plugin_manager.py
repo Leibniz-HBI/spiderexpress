@@ -1,4 +1,5 @@
 """Manages access and information about spiderexpress' plug-in system."""
+
 import functools
 import importlib.metadata as mt
 import sys
@@ -46,7 +47,9 @@ def _(spec: str, group: str) -> Callable:
     plugin = _access_entry_point(spec, group)
     if not plugin:
         raise ValueError(f"{ spec } could not be found in { group }")
-    return plugin.callable
+    return functools.partial(
+        plugin.callable, configuration=plugin.default_configuration
+    )
 
 
 @get_plugin.register(dict)

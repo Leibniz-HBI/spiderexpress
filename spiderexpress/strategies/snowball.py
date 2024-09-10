@@ -1,6 +1,6 @@
 """Snowball sampling strategy."""
 
-from typing import List
+from typing import Any, Dict, List, Optional
 
 import pandas as pd
 
@@ -11,6 +11,7 @@ def snowball_strategy(
     edges: pd.DataFrame,
     nodes: pd.DataFrame,
     known_nodes: List[str],
+    configuration: Optional[Dict[str, Any]] = None,  # pylint: disable=unused-argument
 ):
     """Random sampling strategy."""
     # split the edges table into edges _inside_ and _outside_ of the known network
@@ -34,5 +35,5 @@ def snowball_strategy(
 
 
 snowball = PlugIn(
-    callable=snowball_strategy, default_configuration=None, metadata={}, tables={}
+    callable=snowball_strategy, default_configuration={}, metadata={}, tables={}
 )
