@@ -40,7 +40,7 @@ csv = "spiderexpress.connectors.csv:csv"
 [tool.poetry.plugins."spiderexpress.strategies"]
 spikyball = "spiderexpress.strategies.spikyball:spikyball"
 random = "spiderexpress.strategies.random:random"
-snowball = "spiderexpress.strategies.snowball.snowball"
+snowball = "spiderexpress.strategies.snowball:snowball"
 
 [tool.pytest.ini_options]
 addopts = "--cov-report html:tests/coverage --cov=spiderexpress --capture=sys"
