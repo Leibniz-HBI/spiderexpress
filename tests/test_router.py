@@ -1,9 +1,9 @@
-"""Test suite for ponyexpress' multi-layer router."""
+"""Test suite for spiderexpress' multi-layer router."""
 from typing import Any, Dict, List, Optional, Union
 
 import pytest
 
-from ponyexpress.router import Router, RouterValidationError
+from spiderexpress.router import Router, RouterValidationError
 
 
 @pytest.mark.parametrize(

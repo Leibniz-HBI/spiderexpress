@@ -1,11 +1,11 @@
-"""test suite for ponyexpress.Configuration"""
+"""test suite for spiderexpress.Configuration"""
 from pathlib import Path
 
 import pytest
 import yaml
 from pytest import skip
 
-from ponyexpress import Configuration
+from spiderexpress import Configuration
 
 # pylint: disable=W0621
 

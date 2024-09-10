@@ -4,7 +4,7 @@ from typing import List
 
 import pandas as pd
 
-from ponyexpress.types import PlugIn
+from spiderexpress.types import PlugIn
 
 
 def snowball_strategy(

@@ -1,8 +1,8 @@
-"""Test suite for ponyexpress.connectors.csv_connector."""
+"""Test suite for spiderexpress.connectors.csv_connector."""
 import pytest
 
-from ponyexpress.connectors import csv_connector
-from ponyexpress.connectors.csv import _cache
+from spiderexpress.connectors import csv_connector
+from spiderexpress.connectors.csv import _cache
 
 # pylint: disable=redefined-outer-name
 

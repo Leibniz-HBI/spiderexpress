@@ -1,4 +1,4 @@
-"""Application class for ponyexpress
+"""Application class for spiderexpress
 
 Constants:
 
@@ -19,7 +19,7 @@ from loguru import logger as log
 from sqlalchemy import orm
 from transitions import Machine
 
-from ponyexpress.model import (
+from spiderexpress.model import (
     AppMetaData,
     Base,
     SeedList,
@@ -28,14 +28,14 @@ from ponyexpress.model import (
     create_node_table,
     create_raw_edge_table,
 )
-from ponyexpress.plugin_manager import get_plugin
-from ponyexpress.types import Configuration, Connector, Strategy
+from spiderexpress.plugin_manager import get_plugin
+from spiderexpress.types import Configuration, Connector, Strategy
 
 # pylint: disable=W0613,E1101,C0103
 
 
-CONNECTOR_GROUP = "ponyexpress.connectors"
-STRATEGY_GROUP = "ponyexpress.strategies"
+CONNECTOR_GROUP = "spiderexpress.connectors"
+STRATEGY_GROUP = "spiderexpress.strategies"
 
 MAX_RETRIES = 3
 
@@ -44,7 +44,7 @@ class_registry = {}
 
 
 class Spider:
-    """This is ponyexpress' Spider.
+    """This is spiderexpress' Spider.
 
     With this animal we traverse the desert of social media networks.
 

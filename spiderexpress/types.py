@@ -1,6 +1,6 @@
 # pylint: disable=R
 
-"""Type definitions for ponyexpress
+"""Type definitions for spiderexpress
 
 Philipp Kessling <p.kessling@leibniz-hbi.de>
 Leibniz-Institute for Media Research, 2022
@@ -60,7 +60,7 @@ ColumnSpec = Dict[str, Union[str, Dict[str, str]]]
 class Configuration(yaml.YAMLObject):
     """Configuration-File Wrapper"""
 
-    yaml_tag = "!ponyexpress:Configuration"
+    yaml_tag = "!spiderexpress:Configuration"
 
     def __init__(
         self,
@@ -155,8 +155,8 @@ class PlugIn:
 
 
 class RetryableException(Exception):
-    """Raise if you want ponyexpress to retry the task."""
+    """Raise if you want spiderexpress to retry the task."""
 
 
 class FinalException(Exception):
-    """Raise if you want ponyexpress to abort."""
+    """Raise if you want spiderexpress to abort."""
