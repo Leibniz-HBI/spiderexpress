@@ -1,7 +1,8 @@
-"""Definitions for the ponyexpress ORM-model.
+"""Definitions for the spiderexpress ORM-model.
 
 It keeps track of the crawled data, the configuration and the current state of the crawler.
 """
+
 import datetime
 from typing import Any, Callable, Dict, List, Tuple, Type
 
@@ -122,7 +123,10 @@ def create_raw_edge_table(
 
         def __repr__(self):
             return f"""<RawEdge {
-                ' '.join([f'{key}={value}' for key, value in self.__dict__.items() if not key.startswith('_')])
+                ' '.join([
+                    f'{key}={value}' for key, value in self.__dict__.items()
+                    if not key.startswith('_')
+                ])
             } />"""
 
     mapper_registry.map_imperatively(RawEdge, table)
@@ -163,7 +167,10 @@ def create_aggregated_edge_table(
 
         def __repr__(self):
             return f"""<AggEdge {
-                ' '.join([f'{key}={value}' for key, value in self.__dict__.items() if not key.startswith('_')])
+                ' '.join([
+                    f'{key}={value}' for key, value in self.__dict__.items()
+                    if not key.startswith('_')
+                ])
             } />"""
 
     mapper_registry.map_imperatively(AggEdge, table)
@@ -203,7 +210,10 @@ def create_node_table(
 
         def __repr__(self):
             return f"""<Node {
-                ' '.join([f'{key}={value}' for key, value in self.__dict__.items() if not key.startswith('_')])
+                ' '.join([
+                    f'{key}={value}' for key, value in self.__dict__.items()
+                    if not key.startswith('_')
+                ])
             } />"""
 
     mapper_registry.map_imperatively(Node, table)

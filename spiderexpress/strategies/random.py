@@ -4,7 +4,7 @@ from typing import Any, Dict
 
 import pandas as pd
 
-from ponyexpress.types import PlugIn
+from spiderexpress.types import PlugIn
 
 
 def random_strategy(

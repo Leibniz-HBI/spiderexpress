@@ -1,4 +1,5 @@
-"""Manages access and information about ponyexpress' plug-in system."""
+"""Manages access and information about spiderexpress' plug-in system."""
+
 import functools
 import importlib.metadata as mt
 import sys
@@ -6,7 +7,7 @@ from typing import Callable, Optional
 
 from loguru import logger as log
 
-from ponyexpress.types import PlugIn, PlugInSpec
+from spiderexpress.types import PlugIn, PlugInSpec
 
 
 def _access_entry_point(name: str, group: str) -> Optional[PlugIn]:
@@ -19,7 +20,7 @@ def _access_entry_point(name: str, group: str) -> Optional[PlugIn]:
     log.info(f"Accessed this. { candidates }.")
 
     if len(candidates) == 1:
-        plugin: PlugIn = candidates[0].load()
+        plugin: PlugIn = candidates[name].load()
 
         log.debug(f"Got { plugin }")
         return plugin
@@ -46,7 +47,9 @@ def _(spec: str, group: str) -> Callable:
     plugin = _access_entry_point(spec, group)
     if not plugin:
         raise ValueError(f"{ spec } could not be found in { group }")
-    return plugin.callable
+    return functools.partial(
+        plugin.callable, configuration=plugin.default_configuration
+    )
 
 
 @get_plugin.register(dict)

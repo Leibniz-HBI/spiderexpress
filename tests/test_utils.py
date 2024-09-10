@@ -10,7 +10,7 @@ from dataclasses import asdict
 
 import pytest
 
-from ponyexpress.types import fromdict
+from spiderexpress.types import fromdict
 from tests.conftest import MyFunkyTestClass, MyOtherFunkyTestClass
 
 

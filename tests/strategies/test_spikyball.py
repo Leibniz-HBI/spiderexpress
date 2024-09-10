@@ -1,4 +1,4 @@
-"""test suite for ponyexpress/spikyball.py
+"""test suite for spiderexpress/spikyball.py
 
 ToDo:
 
@@ -11,7 +11,7 @@ import pandas as pd
 import pytest
 from numpy import isnan, nan
 
-from ponyexpress.strategies.spikyball import (
+from spiderexpress.strategies.spikyball import (
     ProbabilityConfiguration,
     calc_norm,
     calc_prob,

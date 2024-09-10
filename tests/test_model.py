@@ -5,7 +5,7 @@ import pytest
 import sqlalchemy as sql
 from sqlalchemy.orm import Session
 
-from ponyexpress.model import (
+from spiderexpress.model import (
     AppMetaData,
     Base,
     SeedList,

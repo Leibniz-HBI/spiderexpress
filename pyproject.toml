@@ -1,12 +1,12 @@
 [tool.poetry]
-name = "ponyexpress"
-version = "0.1.0"
+name = "spiderexpress"
+version = "0.1.1a0"
 description = "A multipurpose spidery crawler for social media platforms"
 authors = ["Philipp Kessling <p.kessling@leibniz-hbi.de>"]
 license = "MIT"
 
 [tool.poetry.dependencies]
-python = "^3.8"
+python = "^3.10"
 pandas = "*"
 SQLAlchemy = "*"
 loguru = "*"
@@ -14,7 +14,7 @@ numpy = "*"
 click = "*"
 psycopg2-binary = "*"
 PyYAML = "*"
-transitions = "^0.9.0"
+transitions = "*"
 
 [tool.poetry.dev-dependencies]
 ipykernel = "*"
@@ -32,18 +32,18 @@ requires = ["poetry-core>=1.0.0"]
 build-backend = "poetry.core.masonry.api"
 
 [tool.poetry.scripts]
-ponyexpress = 'ponyexpress.cli:cli'
+spiderexpress = 'spiderexpress.cli:cli'
 
-[tool.poetry.plugins."ponyexpress.connectors"]
-csv = "ponyexpress.connectors.csv:csv"
+[tool.poetry.plugins."spiderexpress.connectors"]
+csv = "spiderexpress.connectors.csv:csv"
 
-[tool.poetry.plugins."ponyexpress.strategies"]
-spikyball = "ponyexpress.strategies.spikyball:spikyball"
-random = "ponyexpress.strategies.random:random"
-snowball = "ponyexpress.strategies.snowball.snowball"
+[tool.poetry.plugins."spiderexpress.strategies"]
+spikyball = "spiderexpress.strategies.spikyball:spikyball"
+random = "spiderexpress.strategies.random:random"
+snowball = "spiderexpress.strategies.snowball:snowball"
 
 [tool.pytest.ini_options]
-addopts = "--cov-report html:tests/coverage --cov=ponyexpress --capture=sys"
+addopts = "--cov-report html:tests/coverage --cov=spiderexpress --capture=sys"
 
 [tool.isort]
 profile = "black"

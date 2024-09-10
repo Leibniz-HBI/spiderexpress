@@ -1,14 +1,17 @@
 """Snowball sampling strategy."""
 
+from typing import Any, Dict, Optional
+
 import pandas as pd
 
-from ponyexpress.types import PlugIn
+from spiderexpress.types import PlugIn
 
 
 def snowball_strategy(
     edges: pd.DataFrame,
     nodes: pd.DataFrame,
     state: pd.DataFrame,
+    configuration: Optional[Dict[str, Any]] = None,  # pylint: disable=unused-argument
 ):
     """Random sampling strategy."""
     # split the edges table into edges _inside_ and _outside_ of the known network
@@ -16,6 +19,7 @@ def snowball_strategy(
     edges_inward = edges.loc[mask, :]
     edges_outward = edges.loc[~mask, :]
 
+    # select 10 edges to follow
     edges_sampled = edges_outward.copy()
 
     new_seeds = (
@@ -32,7 +36,7 @@ def snowball_strategy(
 
 snowball = PlugIn(
     callable=snowball_strategy,
-    default_configuration=None,
+    default_configuration={},
     metadata={},
     tables={
         "node_id": "Text",
