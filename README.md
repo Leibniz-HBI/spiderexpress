@@ -317,8 +317,8 @@ connector:
 
 ### Other connectors
 
-- **Telegram**: A connector scrapes the latest messages of a Telegram's channel public website. Find it [on GitHub](https://github.com/Leibniz-HBI/spiderexpress-telegram).
-- **Twitter**: A connector to retrieve followers, friends and other things from Twitter. Find it [on GitHub](https://github.com/Leibniz-HBI/spiderexpress-twitter).
+- **Telegram**: A connector scrapes the latest messages of a Telegram's channel public website. Find it [on GitHub](https://github.com/Leibniz-HBI/ponyexpress-telegram).
+- **Twitter**: A connector to retrieve followers, friends and other things from Twitter. Find it [on GitHub](https://github.com/Leibniz-HBI/ponyexpress-twitter).
 
 ## Included Strategies
 
@@ -579,4 +579,4 @@ This software uses [poetry](https://python-poetry.org/) as a package management 
 
 ---
 
-2022, [Philipp Kessling](mailto:p.kessling@leibniz-hbi.de) under the MIT license.
+2024, [Philipp Kessling](mailto:p.kessling@leibniz-hbi.de) under the MIT license.
