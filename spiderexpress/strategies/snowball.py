@@ -1,6 +1,6 @@
 """Snowball sampling strategy."""
 
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, Optional
 
 import pandas as pd
 
@@ -10,12 +10,12 @@ from spiderexpress.types import PlugIn
 def snowball_strategy(
     edges: pd.DataFrame,
     nodes: pd.DataFrame,
-    known_nodes: List[str],
+    state: pd.DataFrame,
     configuration: Optional[Dict[str, Any]] = None,  # pylint: disable=unused-argument
 ):
     """Random sampling strategy."""
     # split the edges table into edges _inside_ and _outside_ of the known network
-    mask = edges.target.isin(known_nodes)
+    mask = edges.target.isin(state.node_id)
     edges_inward = edges.loc[mask, :]
     edges_outward = edges.loc[~mask, :]
 
@@ -35,5 +35,10 @@ def snowball_strategy(
 
 
 snowball = PlugIn(
-    callable=snowball_strategy, default_configuration={}, metadata={}, tables={}
+    callable=snowball_strategy,
+    default_configuration={},
+    metadata={},
+    tables={
+        "node_id": "Text",
+    },
 )

@@ -1,4 +1,4 @@
-"""Application class for spiderexpress
+"""Application class for ponyexpress
 
 Constants:
 
@@ -7,7 +7,11 @@ CONNECTOR_GROUP :
 
 STRATEGY_GROUP :
     str : group name of our strategy entrypoint
+
+Todo:
+- nicer way to pass around the dynamic ORM classes
 """
+
 from datetime import datetime
 from pathlib import Path
 from typing import Any, Dict, Optional, Union
@@ -27,8 +31,9 @@ from spiderexpress.model import (
     create_aggregated_edge_table,
     create_node_table,
     create_raw_edge_table,
+    create_sampler_state_table,
 )
-from spiderexpress.plugin_manager import get_plugin
+from spiderexpress.plugin_manager import get_plugin, get_table_configuration
 from spiderexpress.types import Configuration, Connector, Strategy
 
 # pylint: disable=W0613,E1101,C0103
@@ -289,6 +294,16 @@ class Spider:
         factory_registry["raw_edge"] = raw_edge_factory
         factory_registry["agg_edge"] = agg_edge_factory
 
+        strategy_name = (
+            self.configuration.strategy
+            if isinstance(self.configuration.strategy, str)
+            else list(self.configuration.strategy.keys())[0]
+        )
+
+        _, SamplerState, _ = create_sampler_state_table(  # pylint: disable=W0612
+            strategy_name, get_table_configuration(strategy_name, STRATEGY_GROUP)
+        )
+        class_registry["sampler_state"] = SamplerState
         Base.metadata.create_all(engine)
 
         appstate = self._cache_.get(AppMetaData, "1")
@@ -335,9 +350,7 @@ class Spider:
         node_id = (
             task.name
             if isinstance(task, (class_registry["node"]))
-            else task
-            if isinstance(task, str)
-            else task.id
+            else task if isinstance(task, str) else task.id
         )
 
         if self._cache_.execute(
@@ -513,19 +526,23 @@ class Spider:
             self._cache_.query(class_registry["node"]).statement,
             self._cache_.connection(),
         )
-        known_nodes = self._cache_.execute(sql.select(SeedList.id)).scalars().all()
+        sampler_state = pd.read_sql(
+            sql.select(class_registry["sampler_state"]), self._cache_.connection()
+        )
 
         log.info(
             f"""Sampling from {
             len(edges)
         } edges with {
             len(nodes)
-        } nodes, whereas {
-            len(known_nodes)
-        } nodes are known already."""
+        } nodes while the sampler's state is { len(sampler_state) } long."""
         )
 
-        new_seeds, new_edges, _ = self.strategy(edges, nodes, known_nodes)
+        log.info(f"That's the current state of affairs: { sampler_state }")
+
+        new_seeds, new_edges, _, new_sampler_state = self.strategy(
+            edges, nodes, sampler_state
+        )
 
         new_edges["iteration"] = self.appstate.iteration
 
@@ -550,6 +567,9 @@ class Spider:
                 if edge["source"] is not None and edge["target"] is not None
             ]
         )
+        for state in new_sampler_state.to_dict(orient="records"):
+            self._cache_.merge(class_registry["sampler_state"](**state))
+
         self._cache_.commit()
 
     def load_plugins(self, *args):
