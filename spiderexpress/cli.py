@@ -13,9 +13,11 @@ Todo
 """
 from importlib.metadata import entry_points
 from pathlib import Path
+from loguru import logger as log
 
 import click
 import yaml
+import sys
 
 from .spider import CONNECTOR_GROUP, STRATEGY_GROUP, Spider
 from .types import Configuration
@@ -23,6 +25,7 @@ from .types import Configuration
 
 @click.group()
 @click.pass_context
+@log.catch
 def cli(ctx):
     """Traverse the deserts of the internet."""
     ctx.ensure_object(Spider)
@@ -30,9 +33,23 @@ def cli(ctx):
 
 @cli.command()
 @click.argument("config", type=click.Path(path_type=Path, exists=True))
+@click.option("-v", "--verbose", count=True)
+@click.option("-l", "--logfile", type=click.Path(dir_okay=False, writable=True, path_type=str))
 @click.pass_context
-def start(ctx: click.Context, config: Path):
+def start(ctx: click.Context, config: Path, verbose: int, logfile: str):
     """start a job"""
+    logging_level = max(50 - (10 * verbose), 0) # Allows logging level to be between 0 and 50.
+    logging_configuration = {
+        "handlers": [
+            {
+                "sink": logfile or sys.stdout,
+                "level": logging_level
+            }
+        ],
+        "extra": {}
+    }
+    log.configure(**logging_configuration)
+    log.debug(f"Starting logging with verbosity {logging_level}.")    
     ctx.obj.start(config)
 
 
