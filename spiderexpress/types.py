@@ -71,7 +71,7 @@ class Configuration(yaml.YAMLObject):
         self.strategy = strategy
         self.connector = connector
         self.project_name = project_name
-        self.db_url = db_url or f"sqlite://{project_name}.db"
+        self.db_url = db_url or f"sqlite:///{project_name}.db"
         self.db_schema = db_schema
         self.edge_raw_table = edge_raw_table or {"name": "edge_raw", "columns": {}}
         self.edge_agg_table = edge_agg_table or {"name": "edge_agg", "columns": {}}
