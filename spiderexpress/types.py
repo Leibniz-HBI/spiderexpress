@@ -115,7 +115,7 @@ class Layer:
     name: str
     connector: Connector
     metadata: Dict[str, str]
-    routers: Dict[str, "Router"]
+    routers: Dict[str, "RouterSpec"]
 
 
 @dataclass
