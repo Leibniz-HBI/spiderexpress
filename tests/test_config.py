@@ -46,10 +46,10 @@ def test_open_seeds_from_file():
 def test_parse_layer_configuration():
     """Should parse a layer configuration."""
     config = from_dict(
-        Configuration, {"layers": {"test": {"test"}}, "seeds": {"test": ["1", "13"]}}
+        Configuration, {"layers": {"test": "test"}, "seeds": {"test": ["1", "13"]}}
     )
     assert config is not None
-    assert config.layers == {"name": "test"}
+    assert config.layers == {"test": "test"}
     assert config.project_name == "spider"
     assert config.db_url == "sqlite:///spider.db"
     assert config.max_iteration == 10000
