@@ -505,7 +505,7 @@ class Spider:
 """
             )
 
-            sampler: Strategy = get_plugin(layer_config.get("sampler"), STRATEGY_GROUP)
+            sampler: Strategy = get_plugin(layer_config.sampler, STRATEGY_GROUP)
             new_seeds, sparse_edges, sparse_nodes, new_sampler_state = sampler(
                 edges, nodes, sampler_state
             )
@@ -548,14 +548,14 @@ class Spider:
             raise ValueError("Configuration or Connector are not present")
         # Get the connector for the layer
         layer_configuration = self.configuration.layers[layer]
-        connector_spec = layer_configuration.get("connector")
+        connector_spec = layer_configuration.connector
         connector = get_plugin(connector_spec, CONNECTOR_GROUP)
 
         log.debug(f"Requesting data for {node.node_id} from {connector_spec}.")
 
         raw_edges, nodes = connector([node.node_id])
 
-        routers = layer_configuration.get("routers", [])
+        routers = layer_configuration.routers
         for router_definition in routers:
             for router_name, router_spec in router_definition.items():
 
@@ -575,7 +575,7 @@ class Spider:
                         log.debug(f"Inserted edge: {edge}")
 
                     if (
-                        layer_configuration.get("eager") is True
+                        layer_configuration.eager is True
                         and node.parent_task_id is None
                     ):
                         #  We add only new task if the parent_task_id is None to avoid snowballing

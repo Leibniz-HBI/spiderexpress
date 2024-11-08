@@ -343,6 +343,6 @@ def spikyball_strategy(
 spikyball = PlugIn(
     callable=spikyball_strategy,
     default_configuration={},
-    tables={"node_id": "Text"},
+    tables={"state": {"node_id": "Text"}},
     metadata={},
 )

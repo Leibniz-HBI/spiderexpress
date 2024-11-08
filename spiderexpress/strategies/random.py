@@ -40,7 +40,7 @@ def random_strategy(
 
 random = PlugIn(
     callable=random_strategy,
-    tables={"node_": "Text"},
+    tables={"state": {"node_id": "Text"}},
     metadata={},
     default_configuration={"n": 10},
 )

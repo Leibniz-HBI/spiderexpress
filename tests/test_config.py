@@ -1,5 +1,7 @@
 """test suite for spiderexpress.Configuration"""
 
+from typing import Dict
+
 import pytest
 import yaml
 
@@ -43,13 +45,28 @@ def test_open_seeds_from_file():
     assert config.seeds == {"test": ["1", "2", "3"]}
 
 
-def test_parse_layer_configuration():
+@pytest.mark.parametrize(
+    ["configuration"],
+    [
+        pytest.param(
+            {
+                "layers": {
+                    "test": {
+                        "connector": {"csv": {"n": 1}},
+                        "routers": [],
+                        "sampler": {"random": {"n": 1}},
+                    }
+                },
+                "seeds": {"test": ["1", "13"]},
+            },
+            id="empty_router",
+        ),
+    ],
+)
+def test_parse_layer_configuration(configuration: Dict):
     """Should parse a layer configuration."""
-    config = from_dict(
-        Configuration, {"layers": {"test": "test"}, "seeds": {"test": ["1", "13"]}}
-    )
+    config = from_dict(Configuration, configuration)
     assert config is not None
-    assert config.layers == {"test": "test"}
     assert config.project_name == "spider"
     assert config.db_url == "sqlite:///spider.db"
     assert config.max_iteration == 10000

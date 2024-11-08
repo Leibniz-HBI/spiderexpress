@@ -8,6 +8,8 @@ from typing import Any, Dict, List, Optional
 
 from loguru import logger as log
 
+from spiderexpress.types import RouterSpec
+
 
 class RouterValidationError(ValueError):
     """Something went wrong with validating the spec."""
@@ -53,16 +55,17 @@ class Router:
     TARGET = "target"
     SOURCE = "source"
 
-    def __init__(self, name: str, spec: Dict[str, Any], context: Optional[Dict] = None):
+    def __init__(self, name: str, spec: RouterSpec, context: Optional[Dict] = None):
         # Store the layer name
         self.name = name
         # Validate the spec against the rule set
         Router.validate_spec(name, spec, context)
-        self.spec = spec.copy()
+        self.spec: RouterSpec = spec
 
     @classmethod
     def validate_spec(cls, name, spec, context):
         """Validates a spec in a context."""
+        # pylint: disable=R0912
         if Router.TARGET not in spec:
             raise RouterValidationError(
                 f"{name}: Key {Router.TARGET} is missing from {spec}."
@@ -94,12 +97,12 @@ class Router:
         for _, data_column_name in spec.items():
             if data_column_name not in this_connector:
                 raise RouterValidationError(f"{name}: {data_column_name} not found.")
-        # for target_spec in spec.get(Router.TARGET):
-        #    field = target_spec.get("field")
-        #    if field not in connectors.get(name).get("columns"):
-        #        raise RouterValidationError(
-        #            f"{name}: reference to  {field} not found in " f"context."
-        #       )
+        for target_spec in spec.get(Router.TARGET):
+            field = target_spec.get("field")
+            if field not in connectors.get(name).get("columns"):
+                raise RouterValidationError(
+                    f"{name}: reference to  {field} not found in " f"context."
+                )
 
     def parse(self, input_data) -> List[Dict[str, Any]]:
         """Parses data with the given spec and emits edges."""
