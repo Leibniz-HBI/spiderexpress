@@ -46,7 +46,7 @@ def get_plugin(spec: PlugInSpec, group: str) -> Callable:
 def _(spec: str, group: str) -> Callable:
     plugin = _access_entry_point(spec, group)
     if not plugin:
-        raise ValueError(f"{ spec } could not be found in { group }")
+        raise ValueError(f"{spec} could not be found in {group}")
     return functools.partial(
         plugin.callable, configuration=plugin.default_configuration
     )
