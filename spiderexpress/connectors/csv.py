@@ -1,12 +1,14 @@
 """A CSV-reading, network-rippin' connector for your testing purposes."""
+
 import dataclasses
 from typing import Dict, List, Optional, Tuple, Union
 
 import pandas as pd
 
-from spiderexpress.types import PlugIn, fromdict
+from spiderexpress.types import PlugIn, from_dict
 
 _cache = {}
+
 
 @dataclasses.dataclass
 class CSVConnectorConfiguration:
@@ -23,7 +25,7 @@ def csv_connector(
 ) -> Tuple[pd.DataFrame, pd.DataFrame]:
     """The CSV connector!"""
     if isinstance(configuration, dict):
-        configuration = fromdict(CSVConnectorConfiguration, configuration)
+        configuration = from_dict(CSVConnectorConfiguration, configuration)
 
     if configuration.cache:
         if configuration.edge_list_location not in _cache:
@@ -61,9 +63,11 @@ def csv_connector(
 
     return (
         edge_return,
-        nodes.loc[nodes.name.isin(node_ids), :]
-        if nodes is not None
-        else pd.DataFrame(),
+        (
+            nodes.loc[nodes.name.isin(node_ids), :]
+            if nodes is not None
+            else pd.DataFrame()
+        ),
     )
 
 

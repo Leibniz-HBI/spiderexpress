@@ -34,7 +34,7 @@ from spiderexpress.model import (
     create_sampler_state_table,
 )
 from spiderexpress.plugin_manager import get_plugin, get_table_configuration
-from spiderexpress.types import Configuration, Connector, Strategy
+from spiderexpress.types import Configuration, Connector, Strategy, from_dict
 
 # pylint: disable=W0613,E1101,C0103
 
@@ -235,13 +235,7 @@ class Spider:
                 )
 
             with config_file.open("r", encoding="utf8") as file:
-                self.configuration = yaml.full_load(file)
-        else:
-            self.configuration = (
-                self.configuration
-                if isinstance(self.configuration, Configuration)
-                else Configuration(**self.configuration)
-            )
+                self.configuration = from_dict(Configuration, yaml.safe_load(file))
 
     def is_config_valid(self):
         """Asserts that the configuration is valid."""
