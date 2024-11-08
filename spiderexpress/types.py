@@ -113,7 +113,6 @@ class Layer:
     """Layer Configuration"""
 
     name: str
-    sampler: Strategy
     connector: Connector
     metadata: Dict[str, str]
     routers: Dict[str, "Router"]
@@ -129,7 +128,7 @@ class FieldSpec:
 
 
 @dataclass
-class Router:
+class RouterSpec:
     """Router Configuration"""
 
     name: str

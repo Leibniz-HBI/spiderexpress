@@ -172,6 +172,27 @@ class LayerSparseEdges(Base):
     data: orm.Mapped[Dict] = orm.mapped_column()
 
 
+def insert_layer_sparse_edge(session, layer_id, edge_type, data):
+    """Insert a sparse edge into the database."""
+    source = data.get("source")
+    target = data.get("target")
+    weight = data.get("weight")
+    id = f"{layer_id}:{source}-{target}"
+
+    sparse_edge = LayerSparseEdges(
+        id=id,
+        source=source,
+        target=target,
+        weight=weight,
+        edge_type=edge_type,
+        layer_id=layer_id,
+        data=data,
+    )
+    session.merge(sparse_edge)
+    session.commit()
+    log.debug(f"Inserted sparse edge from {source} to {target} in layer {layer_id}")
+
+
 class LayerSparseNodes(Base):
     """Table for sparse data storage."""
 
@@ -187,12 +208,25 @@ class LayerSparseNodes(Base):
     data: orm.Mapped[Dict] = orm.mapped_column()
 
 
+def insert_layer_sparse_node(session, layer_id, node_type, data):
+    """Insert a sparse node into the database."""
+    name = data.get("name")
+    id = f"{layer_id}:{name}"
+
+    sparse_node = LayerSparseNodes(
+        id=id, name=name, layer_id=layer_id, node_type=node_type, data=data
+    )
+    session.merge(sparse_node)
+    session.commit()
+    log.debug(f"Inserted sparse node {name} in layer {layer_id}")
+
+
 class SamplerStateStore(Base):
     """Table for storing the state of the sampler."""
 
     __tablename__ = "sampler_state_store"
 
-    id: orm.Mapped[str] = orm.mapped_column(primary_key=True, autoincrement="auto")
+    id: orm.Mapped[int] = orm.mapped_column(primary_key=True, autoincrement=True)
     iteration: orm.Mapped[int] = orm.mapped_column(index=True)
     layer_id: orm.Mapped[str] = orm.mapped_column(index=True)
     data: orm.Mapped[Dict] = orm.mapped_column()

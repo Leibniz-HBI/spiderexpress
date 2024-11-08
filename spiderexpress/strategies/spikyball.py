@@ -320,17 +320,24 @@ def spikyball_strategy(
 
     if isinstance(configuration, dict):
         configuration = from_dict(SpikyBallConfiguration, configuration)
+    first_round = state.empty
+    if first_round:
+        state = pd.DataFrame({"node_id": edges.source.unique()})
 
     e_in, e_out = filter_edges(edges, state.node_id.tolist())
-    seeds, e_sampled = sample_edges(
+    seeds, sparse_edges = sample_edges(
         e_out,
         nodes,
         configuration.sampler,
         configuration.layer_max_size,
     )
-    state = pd.concat([state, pd.DataFrame({"node_id": seeds})])
+    if first_round:
+        state = pd.concat([state, pd.DataFrame({"node_id": seeds})])
+    else:
+        state = pd.DataFrame({"node_id": seeds})
+    sparse_nodes = nodes.loc[nodes.name.isin(seeds), :]
 
-    return seeds, pd.concat([e_in, e_sampled]), e_out, state
+    return seeds, sparse_edges, sparse_nodes, state
 
 
 spikyball = PlugIn(

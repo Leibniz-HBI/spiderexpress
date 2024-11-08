@@ -56,7 +56,7 @@ def _(spec: str, group: str) -> Callable:
 def _(spec: dict, group: str) -> Callable:
     if len(spec.keys()) > 1:
         log.warning(
-            "Requesting specification has more than one type."
+            f"Requested specification {spec} has more than one type. "
             "Using the first instance found"
         )
     for name, configuration in spec.items():

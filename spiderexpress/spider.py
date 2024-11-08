@@ -14,7 +14,7 @@ Todo:
 
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Dict, Optional, Union
+from typing import Any, Dict, List, Optional, Union
 
 import pandas as pd
 import sqlalchemy as sql
@@ -28,14 +28,17 @@ from spiderexpress.model import (
     Base,
     LayerDenseEdges,
     LayerDenseNodes,
-    LayerSparseNodes,
     SamplerStateStore,
     SeedList,
     TaskList,
     insert_layer_dense_edge,
     insert_layer_dense_node,
+    insert_layer_sparse_edge,
+    insert_layer_sparse_node,
+    insert_sampler_state,
 )
 from spiderexpress.plugin_manager import get_plugin
+from spiderexpress.router import Router
 from spiderexpress.types import Configuration, Connector, Strategy, from_dict
 
 # pylint: disable=W0613,E1101,C0103
@@ -86,6 +89,9 @@ class Spider:
         {
             "name": "stopping",
             "on_enter": "close_database",
+        },
+        {
+            "name": "stopped",
         },
     ]
     """List of states the spider can be in.
@@ -146,6 +152,11 @@ class Spider:
             "dest": "stopping",
             #  "conditions": "iteration_limit_reached",
         },
+        {
+            "trigger": "end",
+            "source": "stopping",
+            "dest": "stopped",
+        },
     ]
     """List of transitions the spider can make."""
 
@@ -166,14 +177,14 @@ class Spider:
         self.retry_count = 0
 
         # set the loaded configuration to None, as it is not loaded yet
-        self.configuration: Optional[Configuration] = None
+        self.configuration: Optional[Configuration] = configuration
         self.connector: Optional[Connector] = None
         self.strategy: Optional[Strategy] = None
         self._cache_: Optional[orm.Session] = None
         self.appstate: Optional[AppMetaData] = None
 
     @property
-    def task_buffer(self):
+    def task_buffer(self) -> List[TaskList]:
         """Returns the task buffer, which is a list of tasks that are currently
         being processed."""
         return self._cache_.query(TaskList).filter(TaskList.status == "new").all()
@@ -190,7 +201,11 @@ class Spider:
 
     def _conditional_advance(self, *args) -> None:
         """Advances the state machine when the current state is done."""
+        # pylint: disable=R0911
         if self.state == "idle":
+            return
+        if self.state == "stopping":
+            self.trigger("end")
             return
         if self.state == "gathering":
             if self.may_sample():
@@ -214,7 +229,9 @@ class Spider:
 
         targets = self.machine.get_triggers(self.state)
 
-        log.debug(f"Advancing from {self.state} and I can trigger {', '.join(targets)}")
+        log.debug(
+            f"Advancing from {self.state} and I can trigger {', '.join(targets) or 'nothing'}."
+        )
 
         for target in targets:
             if self.trigger(target) is True:
@@ -294,13 +311,16 @@ class Spider:
         log.debug(f"Copying seeds to database: {', '.join(self.configuration.seeds)}.")
 
         # with self._cache_.begin():
-        for seed in self.configuration.seeds:
-            if self._cache_.get(SeedList, seed) is None:
-                _seed = SeedList(id=seed, iteration=0, status="new")
-                self._cache_.add(_seed)
-                self._add_task(_seed)
+        for layer, seeds in self.configuration.seeds.items():
+            for seed in seeds:
+                if self._cache_.get(SeedList, seed) is None:
+                    _seed = SeedList(id=seed, iteration=0, status="new")
+                    self._cache_.add(_seed)
+                    self._add_task(_seed, layer=layer)
 
-    def _add_task(self, task: Union[SeedList, str], parent: Optional[TaskList] = None):
+    def _add_task(
+        self, task: Union[SeedList, str], layer: str, parent: Optional[TaskList] = None
+    ):
         """Adds a task to the task buffer."""
         if not self._cache_:
             raise ValueError("Cache is not present.")
@@ -324,7 +344,7 @@ class Spider:
             node_id=node_id,
             status="new",
             initiated_at=datetime.now(),
-            connector="stub_value",
+            connector=layer,
             parent_task_id=parent.id if parent else None,
         )
         self._cache_.add(new_task)
@@ -408,7 +428,7 @@ class Spider:
         if len(self.task_buffer) == 0:
             return
 
-        task: TaskList = self.task_buffer.pop(0)
+        task = self.task_buffer.pop(0)
 
         log.debug(f"Attempting to gather data for {task.node_id}.")
 
@@ -441,17 +461,21 @@ class Spider:
 
     def sample_network(self):
         """Samples the network."""
+        # pylint: disable=R0914
         if not self._cache_:
             raise ValueError("Cache is not present.")
         for layer_id, layer_config in self.configuration.layers.items():
             # Get data for the layer from the dense data stores
-            edges = pd.json_normalize(
-                pd.read_sql(
-                    self._cache_.query(LayerDenseEdges.data)
-                    .where(LayerDenseEdges.layer_id == layer_id)
-                    .statement,
-                    self._cache_.connection(),
-                ).data
+            edges = pd.read_sql(
+                self._cache_.query(
+                    LayerDenseEdges.source,
+                    LayerDenseEdges.target,
+                    sql.func.count("*").label("weight"),  # pylint: disable=E1102
+                )
+                .where(LayerDenseEdges.layer_id == layer_id)
+                .group_by(LayerDenseEdges.source, LayerDenseEdges.target)
+                .statement,
+                self._cache_.connection(),
             )
             nodes = pd.json_normalize(
                 pd.read_sql(
@@ -469,13 +493,26 @@ class Spider:
                     self._cache_.connection(),
                 ).data
             )
-            sampler: Strategy = get_plugin(layer_config.sampler, STRATEGY_GROUP)
-            new_seeds, new_edges, _, new_sampler_state = sampler(
+
+            log.debug(
+                f"""
+                Sampling layer {layer_id} with {len(edges)} edges and {len(nodes)} nodes.
+                Edges to sample:
+{edges}
+
+                Sampler state:
+{sampler_state}
+"""
+            )
+
+            sampler: Strategy = get_plugin(layer_config.get("sampler"), STRATEGY_GROUP)
+            new_seeds, sparse_edges, sparse_nodes, new_sampler_state = sampler(
                 edges, nodes, sampler_state
             )
 
-            log.info(f"That's the current state of affairs:\n\n{sampler_state}")
-            new_edges["iteration"] = self.appstate.iteration
+            log.info(f"That's the current state of affairs:\n\n{new_sampler_state}")
+
+            sparse_edges["iteration"] = self.appstate.iteration
             if len(new_seeds) == 0:
                 log.warning("Found no new seeds.")
             elif self.retry_count > 0:
@@ -489,50 +526,68 @@ class Spider:
                         id=seed, iteration=self.appstate.iteration + 1, status="new"
                     )
                     self._cache_.add(_seed)
-                    self._add_task(_seed)
-            self._cache_.add_all(
-                [
-                    LayerSparseNodes(**edge)
-                    for edge in new_edges.to_dict(orient="records")
-                    if edge["source"] is not None and edge["target"] is not None
-                ]
-            )
+                    self._add_task(_seed, layer=layer_id)
+
+            for edge in sparse_edges.to_dict(orient="records"):
+                if edge["source"] is not None and edge["target"] is not None:
+                    insert_layer_sparse_edge(self._cache_, layer_id, "test", data=edge)
+            for node in sparse_nodes.to_dict(orient="records"):
+                insert_layer_sparse_node(self._cache_, layer_id, "test", node)
             for state in new_sampler_state.to_dict(orient="records"):
-                self._cache_.merge(SamplerStateStore(layer_id=layer_id, data=state))
+                insert_sampler_state(
+                    self._cache_, layer_id, self.appstate.iteration, state
+                )
 
             self._cache_.commit()
 
     # section: private methods
 
-    def _dispatch_connector_for_node_(self, node: TaskList, connector: str):
+    def _dispatch_connector_for_node_(self, node: TaskList, layer: str):
+        # pylint: disable=R0914
         if not self.configuration:
             raise ValueError("Configuration or Connector are not present")
-        connector = get_plugin(connector, CONNECTOR_GROUP)
-        edges, nodes = connector([node.node_id])
+        # Get the connector for the layer
+        layer_configuration = self.configuration.layers[layer]
+        connector_spec = layer_configuration.get("connector")
+        connector = get_plugin(connector_spec, CONNECTOR_GROUP)
 
-        log.debug(f"edges:\n{edges}\n\nnodes:{nodes}\n")
+        log.debug(f"Requesting data for {node.node_id} from {connector_spec}.")
 
-        if len(edges) > 0:
-            log.info(
-                f"""Persisting {
-                    len(edges)
-                } edges for node {
-                    node.node_id
-                } in iteration
-                #{
-                    self.appstate.iteration
-                }."""
-            )
-            edges["iteration"] = self.appstate.iteration
-            for edge in edges.to_dict(orient="records"):
-                insert_layer_dense_edge(self._cache_, "test", "rest", edge)
+        raw_edges, nodes = connector([node.node_id])
 
-            if self.configuration.eager is True and node.parent_task_id is None:
-                #  We add only new task if the parent_task_id is None to avoid snowballing
-                #  the entire population before we even begin sampling.
-                for target in edges["target"].unique().tolist():
-                    self._add_task(target, parent=node)
-            self._cache_.commit()
+        routers = layer_configuration.get("routers", [])
+        for router_definition in routers:
+            for router_name, router_spec in router_definition.items():
+
+                log.debug(
+                    f"Routing data with {router_name} and this spec: {router_spec}."
+                )
+
+                router = Router(router_name, router_spec)
+                for raw_edge in raw_edges.to_dict(orient="records"):
+                    edges = router.parse(raw_edge)
+                    for edge in edges:
+                        edge["iteration"] = self.appstate.iteration
+                        insert_layer_dense_edge(
+                            self._cache_, edge.get("dispatch_with"), router_name, edge
+                        )
+
+                        log.debug(f"Inserted edge: {edge}")
+
+                    if (
+                        layer_configuration.get("eager") is True
+                        and node.parent_task_id is None
+                    ):
+                        #  We add only new task if the parent_task_id is None to avoid snowballing
+                        #  the entire population before we even begin sampling.
+                        targets = {edge.get("target") for edge in edges}
+                        for target in targets:
+                            self._add_task(
+                                target,
+                                parent=node,
+                                layer=router_spec.get("dispatch_with"),
+                            )
+                self._cache_.commit()
         if len(nodes) > 0:
             nodes["iteration"] = self.appstate.iteration
             for _node in nodes.to_dict(orient="records"):

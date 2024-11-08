@@ -5,6 +5,7 @@ track of its state, handle database connections and manage set up and tear down.
 It is loaded by click as soon as the application starts and the configuration
 is loaded automatically by the initializer.
 """
+
 # pylint: disable=E1101
 from pathlib import Path
 
@@ -28,18 +29,15 @@ def test_load_config():
 
 def test_spider():
     """Should instantiate a spider."""
-    spider = Spider(auto_transitions=False)
+    spider = Spider(auto_transitions=True)
 
     assert spider is not None
     assert spider.is_idle()
 
     spider.start(Path("tests/stubs/sevens_grader_random_test.pe.yml"))
 
-    assert spider.is_starting()
     assert spider.configuration is not None
-
-    spider.gather()
-    assert spider._cache_ is not None  # pylint: disable=W0212
+    assert spider.is_stopped()
 
 
 def test_spider_with_spikyball():
@@ -51,7 +49,7 @@ def test_spider_with_spikyball():
 
     spider.start(Path("tests/stubs/sevens_grader_spikyball_test.pe.yml"))
 
-    assert spider.is_stopping()
+    assert spider.is_stopped()
     assert spider.configuration is not None
 
 
