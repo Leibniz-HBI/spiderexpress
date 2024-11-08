@@ -71,10 +71,11 @@ class Router:
             raise RouterValidationError(
                 f"{name}: Key {Router.SOURCE} is missing from {spec}."
             )
+        if not isinstance(spec.get(Router.TARGET), list):
+            raise RouterValidationError(
+                f"{name}: 'to' is not a list but '{spec.get('to')}'."
+            )
         if isinstance(spec.get(Router.TARGET), list):
-            #    raise RouterValidationError(
-            #        f"{name}: 'to' is not a list but '{spec.get('to')}'."
-            #   )
             for target_spec in spec.get(Router.TARGET):
                 mandatory_fields = ["field", "dispatch_with"]
                 for field in mandatory_fields:
