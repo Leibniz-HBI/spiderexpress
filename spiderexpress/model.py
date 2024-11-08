@@ -87,7 +87,7 @@ class RawDataStore(Base):
     connector_id: orm.Mapped[str] = orm.mapped_column(index=True)
     output_type: orm.Mapped[str] = orm.mapped_column(index=True)
     created_at: orm.Mapped[datetime.datetime] = orm.mapped_column(
-        index=True, insert_default=lambda: datetime.datetime.now(datetime.UTC)
+        index=True, insert_default=lambda: datetime.datetime.now(datetime.timezone.utc)
     )
     data: orm.Mapped[Dict] = orm.mapped_column(insert_default={})
 
@@ -103,7 +103,7 @@ class LayerDenseEdges(Base):
     edge_type: orm.Mapped[str] = orm.mapped_column(index=True)
     layer_id: orm.Mapped[str] = orm.mapped_column(index=True)
     created_at: orm.Mapped[datetime.datetime] = orm.mapped_column(
-        index=True, insert_default=lambda: datetime.datetime.now(datetime.UTC)
+        index=True, insert_default=lambda: datetime.datetime.now(datetime.timezone.utc)
     )
     data: orm.Mapped[Dict] = orm.mapped_column(insert_default={})
 
@@ -137,7 +137,7 @@ class LayerDenseNodes(Base):
     layer_id: orm.Mapped[str] = orm.mapped_column(index=True)
     node_type: orm.Mapped[str] = orm.mapped_column(index=True)
     created_at: orm.Mapped[datetime.datetime] = orm.mapped_column(
-        index=True, insert_default=lambda: datetime.datetime.now(datetime.UTC)
+        index=True, insert_default=lambda: datetime.datetime.now(datetime.timezone.utc)
     )
     data: orm.Mapped[Dict] = orm.mapped_column()
 
@@ -167,7 +167,7 @@ class LayerSparseEdges(Base):
     edge_type: orm.Mapped[str] = orm.mapped_column(index=True)
     weight: orm.Mapped[float] = orm.mapped_column()
     created_at: orm.Mapped[datetime.datetime] = orm.mapped_column(
-        index=True, insert_default=lambda: datetime.datetime.now(datetime.UTC)
+        index=True, insert_default=lambda: datetime.datetime.now(datetime.timezone.utc)
     )
     data: orm.Mapped[Dict] = orm.mapped_column()
 
@@ -203,7 +203,7 @@ class LayerSparseNodes(Base):
     name: orm.Mapped[str] = orm.mapped_column()
     node_type: orm.Mapped[str] = orm.mapped_column(index=True)
     created_at: orm.Mapped[datetime.datetime] = orm.mapped_column(
-        index=True, insert_default=lambda: datetime.datetime.now(datetime.UTC)
+        index=True, insert_default=lambda: datetime.datetime.now(datetime.timezone.utc)
     )
     data: orm.Mapped[Dict] = orm.mapped_column()
 
@@ -231,7 +231,7 @@ class SamplerStateStore(Base):
     layer_id: orm.Mapped[str] = orm.mapped_column(index=True)
     data: orm.Mapped[Dict] = orm.mapped_column()
     created_at: orm.Mapped[datetime.datetime] = orm.mapped_column(
-        insert_default=lambda: datetime.datetime.now(datetime.UTC)
+        insert_default=lambda: datetime.datetime.now(datetime.timezone.utc)
     )
 
 
