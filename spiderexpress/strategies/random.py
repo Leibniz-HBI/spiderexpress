@@ -15,6 +15,8 @@ def random_strategy(
 ):
     """Random sampling strategy."""
     # split the edges table into edges _inside_ and _outside_ of the known network
+    if state.empty:
+        state = pd.DataFrame({"node_id": []})
     mask = edges.target.isin(state.node_id)
     edges_inward = edges.loc[mask, :]
     edges_outward = edges.loc[~mask, :]
