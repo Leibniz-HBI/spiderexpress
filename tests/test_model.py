@@ -6,7 +6,7 @@ import pytest
 import sqlalchemy as sql
 from sqlalchemy.orm import Session
 
-from spiderexpress.model import AppMetaData, SeedList
+from spiderexpress.model import AppMetaData, Base, SeedList
 
 # pylint: disable=W0621
 
@@ -29,6 +29,13 @@ def session(connection):
     yield session
 
     session.close()
+
+
+@pytest.fixture
+def create_tables(connection):
+    """Creates the tables."""
+    yield lambda: Base.metadata.create_all(connection)
+    Base.metadata.drop_all(connection)
 
 
 def test_app_state_table(session, create_tables):
