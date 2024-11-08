@@ -2,6 +2,7 @@
 
 
 """
+
 import re
 from typing import Any, Dict, Optional
 
@@ -11,14 +12,40 @@ class RouterValidationError(ValueError):
 
 
 class Router:
-    """Creates an edge router from the given specification.
+    r"""Creates an edge router from the given specification.
 
     Arguments:
         name (str): the layer name to bind to
         spec (Dict[str, Union[str, List[TargetSpec]]]): how data should be routed
 
     Raises:
-          ValueError: if the specification is malformed
+          RouterValidationError: if the specification is malformed
+
+    Example:
+        spec = {
+            "from": "handle",
+            "to": [
+                {
+                    "field": "text",
+                    "pattern": r"https://www\.twitter\.com/(\w+)",
+                    "dispatch_with": "test",
+                    "type": "twitter-url",
+                }
+            ],
+            "view_count": "view_count",
+        }
+        input_data = {
+            "handle": "Tony",
+            "text": "Check this out: https://www.twitter.com/ernie",
+            "view_count": 123,
+        }
+        router = Router("test", spec)
+        result = router.parse(input_data)
+        print(result)
+        # Output: [{
+            'from': 'Tony', 'to': 'ernie', 'view_count': 123,
+            'dispatch_with': 'test', 'type': 'twitter-url'
+        }]
     """
 
     def __init__(self, name: str, spec: Dict[str, Any], context: Optional[Dict] = None):
@@ -42,7 +69,7 @@ class Router:
             for field in mandatory_fields:
                 if target_spec.get(field) is None:
                     raise RouterValidationError(
-                        f"{name}: '{ field }' cannot be None in {target_spec}"
+                        f"{name}: '{field}' cannot be None in {target_spec}"
                     )
         if context is None:
             return
