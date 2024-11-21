@@ -500,6 +500,9 @@ class Spider:
                 Edges to sample:
 {edges}
 
+                Nodes to sample:
+{nodes}
+
                 Sampler state:
 {sampler_state}
 """
