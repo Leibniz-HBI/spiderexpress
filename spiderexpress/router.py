@@ -76,7 +76,7 @@ class Router:
             )
         if not isinstance(spec.get(Router.TARGET), list):
             raise RouterValidationError(
-                f"{name}: 'to' is not a list but '{spec.get('to')}'."
+                f"{name}: {Router.TARGET} is not a list but '{spec.get(Router.TARGET)}'."
             )
         if isinstance(spec.get(Router.TARGET), list):
             for target_spec in spec.get(Router.TARGET):
