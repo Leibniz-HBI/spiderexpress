@@ -95,21 +95,10 @@ class Configuration:
         )
 
 
-@dataclass
-class FieldSpec:
-    """Field Specification"""
-
-    field: str
-    dispatch_with: str
-    regex: Optional[str] = None
-
-
-@dataclass
-class RouterSpec:
-    """Router Configuration"""
-
-    source: str
-    target: List[FieldSpec]
+FieldSpec = Dict[str, Union[str, Optional[str]]]
+"""Field Specification"""
+RouterSpec = Dict[str, Union[str, List[FieldSpec]]]
+"""Router Configuration"""
 
 
 @dataclass
@@ -127,7 +116,7 @@ class Layer:
     connector: Dict
     routers: List[Dict[str, RouterSpec]]
     eager = False
-    sampler: Union[str, Dict[str, SamplerSpec]]
+    sampler: Dict
 
 
 @dataclass

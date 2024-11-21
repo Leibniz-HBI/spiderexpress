@@ -479,7 +479,7 @@ class Spider:
             )
             nodes = pd.json_normalize(
                 pd.read_sql(
-                    self._cache_.query(LayerDenseNodes.data)
+                    self._cache_.query(LayerDenseNodes.name, LayerDenseNodes.data)
                     .where(LayerDenseNodes.layer_id == layer_id)
                     .statement,
                     self._cache_.connection(),
@@ -554,7 +554,6 @@ class Spider:
         log.debug(f"Requesting data for {node.node_id} from {connector_spec}.")
 
         raw_edges, nodes = connector([node.node_id])
-
         routers = layer_configuration.routers
         for router_definition in routers:
             for router_name, router_spec in router_definition.items():
@@ -591,5 +590,5 @@ class Spider:
         if len(nodes) > 0:
             nodes["iteration"] = self.appstate.iteration
             for _node in nodes.to_dict(orient="records"):
-                insert_layer_dense_node(self._cache_, "test", "rest", _node)
+                insert_layer_dense_node(self._cache_, layer, "default", _node)
             self._cache_.commit()
