@@ -113,13 +113,21 @@ class RouterSpec:
 
 
 @dataclass
+class SamplerSpec:
+    """Sampler Configuration"""
+
+    strategy: str
+    configuration: Dict
+
+
+@dataclass
 class Layer:
     """Layer Configuration"""
 
     connector: Dict
-    routers: List[Dict[str, Dict]]
+    routers: List[Dict[str, RouterSpec]]
     eager = False
-    sampler: Dict
+    sampler: Union[str, Dict[str, SamplerSpec]]
 
 
 @dataclass
