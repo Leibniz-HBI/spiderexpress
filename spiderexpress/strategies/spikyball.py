@@ -77,7 +77,7 @@ class SpikyBallConfiguration:
 
 
 def calc_norm(source: pd.Series, edge: pd.Series, target: pd.Series) -> float:
-    """calculates the normalization contant for skipyball sampling
+    """calculates the normalization constant for skipyball sampling
 
     Parameters
     ----------
@@ -166,6 +166,12 @@ def calc_prob(table: pd.DataFrame, params: ProbabilityConfiguration) -> pd.Serie
         weights = [
             table[key].astype(float) * weight for key, weight in params.weights.items()
         ]
+        for weight in weights:
+            if weight.isna().any():
+                log.warning(
+                    f"Column {weight.name} contains NaN values which will be replaceed with 0."
+                )
+                weight.fillna(0, inplace=True)
         log.debug(f"Using this weight matrix: {weights}")
         return reduce(lambda x, y: x * y, weights) ** params.coefficient
     return pd.Series([1 for _ in range(len(table))], dtype=float)

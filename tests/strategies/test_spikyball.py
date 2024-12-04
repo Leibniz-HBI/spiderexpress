@@ -76,7 +76,7 @@ def test_calc_norm(value: Tuple[pd.Series, pd.Series, pd.Series], expected: floa
                 pd.DataFrame({"a": [1, 2, 3, 4, nan]}),
                 ProbabilityConfiguration(1, {"a": 1}),
             ),
-            pd.Series([1, 2, 3, 4, nan]),
+            pd.Series([1, 2, 3, 4, 0]),
         ),
         (
             (  # check whether given no variable gives uniform weights
