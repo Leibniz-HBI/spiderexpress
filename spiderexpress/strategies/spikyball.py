@@ -172,7 +172,7 @@ def calc_prob(table: pd.DataFrame, params: ProbabilityConfiguration) -> pd.Serie
         for weight in weights:
             if weight.isna().any():
                 log.warning(
-                    f"Column {weight.name} contains NaN values which will be replaceed with 0."
+                    f"Column {weight.name} contains NaN values which will be replaced with '1'."
                 )
                 weight.fillna(1, inplace=True)
         log.debug(f"Using this weight matrix: {weights}")
@@ -242,7 +242,15 @@ def sample_edges(
 
     s_k = calc_norm(source_prob, edge_prob, target_prob)
 
-    log.debug(f"f:\n{source_prob},\ng:\n{edge_prob},\nh:\n{target_prob}\n s_k:{s_k}\n")
+    log.debug(
+        f"""{pd.concat([
+        source_prob.copy().rename("f"),
+        edge_prob.copy().rename("g"),
+        target_prob.copy().rename("h")
+    ], axis=1)}
+s_k:{s_k}
+"""
+    )
 
     outward_edges.loc[:, "probability"] = (source_prob * edge_prob * target_prob) / s_k
 
