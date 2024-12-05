@@ -96,7 +96,7 @@ def calc_norm(source: pd.Series, edge: pd.Series, target: pd.Series) -> float:
 
     float : the normalization constant
     """
-    if any([source.hasnans, edge.hasnans, target.hasnans]):
+    if any([source.isna().any(), edge.isna().any(), target.isna().any()]):
         log.warning("Input contains NaN values which will be replaced with 1.")
     norm_const = (source.fillna(1) * edge.fillna(1) * target.fillna(1)).fillna(1).sum()
     return norm_const
