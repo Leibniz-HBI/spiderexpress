@@ -154,3 +154,5 @@ notebooks/
 
 # spiderexpress files
 *.pe.yml
+
+.DS_Store
