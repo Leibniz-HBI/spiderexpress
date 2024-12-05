@@ -240,4 +240,4 @@ def insert_sampler_state(session, layer_id, iteration, data):
     sampler_state = SamplerStateStore(iteration=iteration, layer_id=layer_id, data=data)
     session.add(sampler_state)
     session.commit()
-    log.debug("Inserted sampler state for layer {layer_id} at iteration {iteration}")
+    log.debug(f"Inserted sampler state for layer {layer_id} at iteration {iteration}")

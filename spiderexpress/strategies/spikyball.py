@@ -96,7 +96,7 @@ def calc_norm(source: pd.Series, edge: pd.Series, target: pd.Series) -> float:
 
     float : the normalization constant
     """
-    if any(source.isna(), edge.isna(), target.isna()):
+    if any([source.hasnans, edge.hasnans, target.hasnans]):
         log.warning("Input contains NaN values which will be replaced with 1.")
     norm_const = (source.fillna(1) * edge.fillna(1) * target.fillna(1)).fillna(1).sum()
     return norm_const
@@ -174,7 +174,7 @@ def calc_prob(table: pd.DataFrame, params: ProbabilityConfiguration) -> pd.Serie
                 log.warning(
                     f"Column {weight.name} contains NaN values which will be replaceed with 0."
                 )
-                weight.fillna(0, inplace=True)
+                weight.fillna(1, inplace=True)
         log.debug(f"Using this weight matrix: {weights}")
         return reduce(lambda x, y: x * y, weights) ** params.coefficient
     return pd.Series([1 for _ in range(len(table))], dtype=float)
