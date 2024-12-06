@@ -13,7 +13,7 @@ from typing import Dict, List, Tuple, Union
 import pandas as pd
 from loguru import logger as log
 
-from ..types import PlugIn, fromdict
+from ..types import PlugIn, from_dict
 
 
 @dataclass
@@ -77,7 +77,7 @@ class SpikyBallConfiguration:
 
 
 def calc_norm(source: pd.Series, edge: pd.Series, target: pd.Series) -> float:
-    """calculates the normalization contant for skipyball sampling
+    """calculates the normalization constant for skipyball sampling
 
     Parameters
     ----------
@@ -96,7 +96,10 @@ def calc_norm(source: pd.Series, edge: pd.Series, target: pd.Series) -> float:
 
     float : the normalization constant
     """
-    return sum(source.fillna(1) * edge.fillna(1) * target.fillna(1))
+    if any([source.isna().any(), edge.isna().any(), target.isna().any()]):
+        log.warning("Input contains NaN values which will be replaced with 1.")
+    norm_const = (source.fillna(1) * edge.fillna(1) * target.fillna(1)).fillna(1).sum()
+    return norm_const
 
 
 def calc_prob(table: pd.DataFrame, params: ProbabilityConfiguration) -> pd.Series:
@@ -166,6 +169,12 @@ def calc_prob(table: pd.DataFrame, params: ProbabilityConfiguration) -> pd.Serie
         weights = [
             table[key].astype(float) * weight for key, weight in params.weights.items()
         ]
+        for weight in weights:
+            if weight.isna().any():
+                log.warning(
+                    f"Column {weight.name} contains NaN values which will be replaced with '1'."
+                )
+                weight.fillna(1, inplace=True)
         log.debug(f"Using this weight matrix: {weights}")
         return reduce(lambda x, y: x * y, weights) ** params.coefficient
     return pd.Series([1 for _ in range(len(table))], dtype=float)
@@ -233,7 +242,15 @@ def sample_edges(
 
     s_k = calc_norm(source_prob, edge_prob, target_prob)
 
-    log.debug(f"f:\n{source_prob},\ng:\n{edge_prob},\nh:\n{target_prob}\n s_k:{s_k}\n")
+    log.debug(
+        f"""{pd.concat([
+        source_prob.copy().rename("f"),
+        edge_prob.copy().rename("g"),
+        target_prob.copy().rename("h")
+    ], axis=1)}
+s_k:{s_k}
+"""
+    )
 
     outward_edges.loc[:, "probability"] = (source_prob * edge_prob * target_prob) / s_k
 
@@ -319,23 +336,30 @@ def spikyball_strategy(
     """
 
     if isinstance(configuration, dict):
-        configuration = fromdict(SpikyBallConfiguration, configuration)
+        configuration = from_dict(SpikyBallConfiguration, configuration)
+    first_round = state.empty
+    if first_round:
+        state = pd.DataFrame({"node_id": edges.source.unique()})
 
     e_in, e_out = filter_edges(edges, state.node_id.tolist())
-    seeds, e_sampled = sample_edges(
+    seeds, sparse_edges = sample_edges(
         e_out,
         nodes,
         configuration.sampler,
         configuration.layer_max_size,
     )
-    state = pd.concat([state, pd.DataFrame({"node_id": seeds})])
+    if first_round:
+        state = pd.concat([state, pd.DataFrame({"node_id": seeds})])
+    else:
+        state = pd.DataFrame({"node_id": seeds})
+    sparse_nodes = nodes.loc[nodes.name.isin(seeds), :]
 
-    return seeds, pd.concat([e_in, e_sampled]), e_out, state
+    return seeds, sparse_edges, sparse_nodes, state
 
 
 spikyball = PlugIn(
     callable=spikyball_strategy,
     default_configuration={},
-    tables={"node_id": "Text"},
+    tables={"state": {"node_id": "Text"}},
     metadata={},
 )

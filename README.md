@@ -50,8 +50,6 @@ In the future we will provide a PyPI package which will make the installation pr
 
 ## Usage
 
-
-
 ```bash
 $ spiderexpress --help
 Usage: spiderexpress [OPTIONS] COMMAND [ARGS]...
@@ -64,6 +62,7 @@ Options:
 Commands:
   create  create a new configuration
   start   start a job
+  list    list all available connectors and strategies
 ```
 
 ### create
@@ -80,6 +79,12 @@ Options:
   --interactive / --non-interactive
 ```
 
+This leads you through a dialogue to create a configuration file for your project.
+You need to supply at least the following information:
+- the name of the project,
+- a path for the seed file.
+
+```bash
 ### start
 
 This command starts a `spiderexpress` job with the given configuration file.
@@ -100,7 +105,7 @@ A `spiderexpress` project could for example look like this:
 ├── my_project
 │   ├── my_project.pe.yml
 │   ├── my_project.db
-│   └── seed_file.txt
+│   └── seed_file.json
 ```
 
 Whereas `my_project.db` is the resulting database, `my_project.pe.yml` is the project's configuration in which a data source and sampling strategy and other parameters may be specified (see [Configuration](#configuration) for further details) and `seed_file.txt` is a text file which contains one node name per line.
@@ -114,34 +119,49 @@ For example projects, please refer to the `examples` directory or the unit tests
 The resulting file could look like something like this example:
 
 ```yaml
-project_name: spider
-batch_size: 150
-db_url: test2.sqlite
+db_url: sqlite:/// # in memory database for testing
+db_schema:
+empty_seeds: stop
 max_iteration: 10000
-edge_table_name: edge_list
-node_table_name: node_list
-seeds:
-  - ...
-connector: telegram
-strategy:
-  spikyball:
-    layer_max_size: 150
+layers:
+  test:
+    eager: false
+    connector:
+      csv:
+        node_list_location: tests/stubs/7th_graders/nodes.csv
+        edge_list_location: tests/stubs/7th_graders/edges.csv
+        mode: out
+    routers:
+      - all:  # This is the name of the router and should be the type of edge.
+          source: source  # This is the field that is mapped to the source columns.
+          target:
+            - field: target  # This is the field that is mapped to the target columns.
+              dispatch_with: test  # This is the name of the layer to dispatch to.
     sampler:
-      source_node_probability:
-        coefficient: 1
-        weights:
-          subscriber_count: 4
-          videos_count: 1
-      target_node_probability:
-        coefficient: 1
-        weights:
-      edge_probability:
-        coefficient: 1
-        weights:
-          views: 1
+      random:
+        n: 5
+project_name: spider
+seeds:
+  test:
+    - "1"
+    - "13"
 ```
 
+> [!note] Nomenclature
+> `spiderexpress` uses `source`and `target` as they variable names for the edges, nodes must have a `name`.
+
 ## Table Schemas
+
+`spiderexpress` is an entirely persistent application, meaning that all of its state information are kept,
+including the data retrieved from the connectors, dense network-layer, the sparse network as well as the application's own
+data.
+
+Most of the user-facing data is kept in the following few tables:
+
+- `raw_data`, here we keep the raw data, as returned by the connector.
+- `layer_dense_edges` and `layer_dense_nodes`, here we keep the network information on the dense network.
+- `layer_sparse_edges` and `layer_sparse_nodes`, sample as above, but only the sampled edges are included.
+
 
 How the tables are structured is determined by the configuration file.
 The following sections describe the minimal configuration for the tables as well as the configuration syntax.

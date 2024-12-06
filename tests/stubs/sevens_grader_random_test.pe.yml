@@ -1,31 +1,26 @@
-!spiderexpress:Configuration
-batch_size: 150
-connector:
-  csv:
-    node_list_location: tests/stubs/7th_graders/nodes.csv
-    edge_list_location: tests/stubs/7th_graders/edges.csv
-    mode: out
-db_url: sqlite:///
+db_url: sqlite:/// # sevens_grader_random_test.db
 db_schema:
-eager: false
 empty_seeds: stop
-edge_table_name: edge_list
 max_iteration: 10000
-node_table:
-  name: sevens_grader_nodes
-  columns: {}
-edge_raw_table:
-  name: sevens_grader_edge_raw
-  columns:
-    layer: Integer
-edge_agg_table:
-  name: sevens_grader_edge_agg
-  columns:
-    layer: Integer
+layers:
+  test:
+    eager: false
+    connector:
+      csv:
+        node_list_location: tests/stubs/7th_graders/nodes.csv
+        edge_list_location: tests/stubs/7th_graders/edges.csv
+        mode: out
+    routers:
+      - all:  # This is the name of the router and should be the type of edge.
+          source: source  # This is the field that is mapped to the source columns.
+          target:
+            - field: target  # This is the field that is mapped to the target columns.
+              dispatch_with: test  # This is the name of the layer to dispatch to.
+    sampler:
+      random:
+        n: 5
 project_name: spider
 seeds:
-  - "1"
-  - "13"
-strategy:
-  random:
-    n: 5
+  test:
+    - "1"
+    - "13"

@@ -24,6 +24,7 @@ from spiderexpress.strategies.spikyball import (
     [
         ((pd.Series([1, 2, 3]), pd.Series([1, 2, 3]), pd.Series([1, 2, 3])), 36),
         ((pd.Series([1, 2, nan]), pd.Series([1, 2, 3]), pd.Series([1, 2, 3])), 18),
+        ((pd.Series([1, 2, 0]), pd.Series([1, 2, 3]), pd.Series([1, 2, 3])), 9),
     ],
 )
 def test_calc_norm(value: Tuple[pd.Series, pd.Series, pd.Series], expected: float):
@@ -76,11 +77,18 @@ def test_calc_norm(value: Tuple[pd.Series, pd.Series, pd.Series], expected: floa
                 pd.DataFrame({"a": [1, 2, 3, 4, nan]}),
                 ProbabilityConfiguration(1, {"a": 1}),
             ),
-            pd.Series([1, 2, 3, 4, nan]),
+            pd.Series([1, 2, 3, 4, 1]),
         ),
         (
             (  # check whether given no variable gives uniform weights
                 pd.DataFrame({"a": [1, 2, 3, 4, 5, 6]}),
+                ProbabilityConfiguration(1, {}),
+            ),
+            pd.Series([1, 1, 1, 1, 1, 1]),
+        ),
+        (
+            (  # check whether 0s propagate
+                pd.DataFrame({"a": [1, 2, 3, 0, 5, 6]}),
                 ProbabilityConfiguration(1, {}),
             ),
             pd.Series([1, 1, 1, 1, 1, 1]),

@@ -15,6 +15,7 @@ click = "*"
 psycopg2-binary = "*"
 PyYAML = "*"
 transitions = "*"
+pydantic = "^2.9.2"
 
 [tool.poetry.dev-dependencies]
 ipykernel = "*"

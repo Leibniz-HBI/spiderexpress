@@ -1,4 +1,5 @@
 """Test suite for spiderexpress' multi-layer router."""
+
 from typing import Any, Dict, List, Optional, Union
 
 import pytest
@@ -9,20 +10,25 @@ from spiderexpress.router import Router, RouterValidationError
 @pytest.mark.parametrize(
     ["specification", "context"],
     [
-        pytest.param({"from": "column", "to": "wrong_value"}, None, id="to_is_string"),
-        pytest.param({"from": "here", "ot": "bad"}, None, id="to_is_missing"),
         pytest.param(
-            {"from": "here", "to": [{"field": "yadad"}]},
+            {"source": "column", "target": "wrong_value"}, None, id="target_is_string"
+        ),
+        pytest.param({"source": "here", "ot": "bad"}, None, id="target_is_missing"),
+        pytest.param(
+            {"source": "here", "target": [{"field": "yadad"}]},
             {"connectors": {"test": {"columns": {"there": "Text"}}}},
             id="from_column_is_missing_in_context",
         ),
         pytest.param(
-            {"from": "column", "to": [{"field": "column", "dispatch_with": "layer_1"}]},
+            {
+                "source": "column",
+                "target": [{"field": "column", "dispatch_with": "layer_1"}],
+            },
             {"connectors": {"layer_1": {"type": "something", "columns": {"column1"}}}},
             id="column_is_missing_in_context",
         ),
         pytest.param(
-            {"from": "column", "to": [{"dispatch_with": "layer_1"}]},
+            {"source": "column", "target": [{"dispatch_with": "layer_1"}]},
             {"connectors": {"layer_1": {"type": "something", "columns": {"column1"}}}},
             id="field is None",
         ),
@@ -59,14 +65,14 @@ input_data_1 = {
         pytest.param(
             input_data_1,
             {
-                "from": "handle",
-                "to": [{"field": "forwarded_handle", "dispatch_with": "test"}],
+                "source": "handle",
+                "target": [{"field": "forwarded_handle", "dispatch_with": "test"}],
                 "view_count": "view_count",
             },
             [
                 {
-                    "from": "Tony",
-                    "to": "Bert",
+                    "source": "Tony",
+                    "target": "Bert",
                     "view_count": 123,
                     "dispatch_with": "test",
                 }
@@ -76,8 +82,8 @@ input_data_1 = {
         pytest.param(
             input_data_1,
             {
-                "from": "handle",
-                "to": [
+                "source": "handle",
+                "target": [
                     {
                         "field": "url",
                         "pattern": r"https://www\.twitter\.com/(\w+)",
@@ -88,8 +94,8 @@ input_data_1 = {
             },
             [
                 {
-                    "from": "Tony",
-                    "to": "ernie",
+                    "source": "Tony",
+                    "target": "ernie",
                     "view_count": 123,
                     "dispatch_with": "test",
                 }
@@ -99,8 +105,8 @@ input_data_1 = {
         pytest.param(
             input_data_1,
             {
-                "from": "handle",
-                "to": [
+                "source": "handle",
+                "target": [
                     {
                         "field": "url",
                         "pattern": r"https://www\.twitter\.com/(\w+)",
@@ -112,8 +118,8 @@ input_data_1 = {
             },
             [
                 {
-                    "from": "Tony",
-                    "to": "ernie",
+                    "source": "Tony",
+                    "target": "ernie",
                     "view_count": 123,
                     "type": "twitter-url",
                     "dispatch_with": "test",
@@ -124,8 +130,8 @@ input_data_1 = {
         pytest.param(
             input_data_1,
             {
-                "from": "handle",
-                "to": [
+                "source": "handle",
+                "target": [
                     {
                         "field": "text",
                         "pattern": r"https://www\.twitter\.com/(\w+)",
@@ -137,15 +143,15 @@ input_data_1 = {
             },
             [
                 {
-                    "from": "Tony",
-                    "to": "ernie",
+                    "source": "Tony",
+                    "target": "ernie",
                     "view_count": 123,
                     "dispatch_with": "test",
                     "type": "twitter-url",
                 },
                 {
-                    "from": "Tony",
-                    "to": "bobafett",
+                    "source": "Tony",
+                    "target": "bobafett",
                     "view_count": 123,
                     "dispatch_with": "test",
                     "type": "twitter-url",
@@ -156,8 +162,8 @@ input_data_1 = {
         pytest.param(
             input_data_1,
             {
-                "from": "handle",
-                "to": [
+                "source": "handle",
+                "target": [
                     {
                         "field": "text",
                         "pattern": r"https://www\.twitter\.com/(\w+)",
@@ -169,21 +175,21 @@ input_data_1 = {
             },
             [
                 {
-                    "from": "Tony",
-                    "to": "ernie",
+                    "source": "Tony",
+                    "target": "ernie",
                     "view_count": 123,
                     "dispatch_with": "test",
                     "type": "twitter-url",
                 },
                 {
-                    "from": "Tony",
-                    "to": "bobafett",
+                    "source": "Tony",
+                    "target": "bobafett",
                     "view_count": 123,
                     "dispatch_with": "test",
                     "type": "twitter-url",
                 },
             ],
-            id="multiple values from regex with directive constant",
+            id="multiple values source regex with directive constant",
         ),
     ],
 )
