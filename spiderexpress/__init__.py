@@ -5,4 +5,4 @@ from .types import Configuration, PlugIn
 
 __all__ = ["Spider", "Configuration", "PlugIn"]
 
-__version__ = "0.1.0a0"
+__version__ = "0.2.0a0"
