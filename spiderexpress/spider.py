@@ -14,7 +14,7 @@ Todo:
 
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Union
+from typing import Any, Dict, Optional, Tuple, Union
 
 import pandas as pd
 import sqlalchemy as sql
@@ -28,20 +28,24 @@ from spiderexpress.model import (
     Base,
     LayerDenseEdges,
     LayerDenseNodes,
+    RawDataStore,
     SamplerStateStore,
     SeedList,
     TaskList,
+    get_open_tasks,
     insert_layer_dense_edge,
     insert_layer_dense_node,
     insert_layer_sparse_edge,
     insert_layer_sparse_node,
+    insert_raw_data,
     insert_sampler_state,
+    insert_seeds,
 )
 from spiderexpress.plugin_manager import get_plugin
 from spiderexpress.router import Router
 from spiderexpress.types import Configuration, Connector, Strategy, from_dict
 
-# pylint: disable=W0613,E1101,C0103
+# pylint: disable=W0613,E1101,C0103,R0902,R0911
 
 
 CONNECTOR_GROUP = "spiderexpress.connectors"
@@ -77,6 +81,10 @@ class Spider:
         {
             "name": "gathering",
             "on_enter": "gather_node_data",
+        },
+        {
+            "name": "routing",
+            "on_enter": "route_raw_data",
         },
         {
             "name": "sampling",
@@ -122,10 +130,15 @@ class Spider:
             "conditions": "is_gathering_not_done",
         },
         {
-            "trigger": "sample",
+            "trigger": "route",
             "source": "gathering",
-            "dest": "sampling",
+            "dest": "routing",
             "conditions": "is_gathering_done",
+        },
+        {
+            "trigger": "sample",
+            "source": "routing",
+            "dest": "sampling",
         },
         {
             "trigger": "gather",
@@ -180,20 +193,16 @@ class Spider:
         self.configuration: Optional[Configuration] = configuration
         self.connector: Optional[Connector] = None
         self.strategy: Optional[Strategy] = None
-        self._cache_: Optional[orm.Session] = None
+        self._cache_: Optional[orm.sessionmaker] = None
+        self._engine_: Optional[sql.Engine] = None
         self.appstate: Optional[AppMetaData] = None
-
-    @property
-    def task_buffer(self) -> List[TaskList]:
-        """Returns the task buffer, which is a list of tasks that are currently
-        being processed."""
-        return self._cache_.query(TaskList).filter(TaskList.status == "new").all()
 
     def is_gathering_done(self):
         """Checks if the gathering phase is done."""
-
-        log.debug(f"Checking if gathering is done. {len(self.task_buffer)} tasks left.")
-        return len(self.task_buffer) == 0
+        with self._cache_.begin() as session:
+            tasks = get_open_tasks(session)
+            log.debug(f"Checking if gathering is done. {len(tasks)} tasks left.")
+            return len(tasks) == 0
 
     def is_gathering_not_done(self):
         """Checks if the gathering phase is not done."""
@@ -201,19 +210,27 @@ class Spider:
 
     def _conditional_advance(self, *args) -> None:
         """Advances the state machine when the current state is done."""
-        # pylint: disable=R0911
+
+        log.debug(
+            f"Current state: {self.state}, called with {', '.join([str(_) for _ in args])}."
+        )
+
         if self.state == "idle":
             return
         if self.state == "stopping":
             self.trigger("end")
             return
         if self.state == "gathering":
-            if self.may_sample():
-                log.debug("Advancing from gathering to sampling")
-                self.trigger("sample")
+            if self.may_route():
+                log.debug("Advancing from gathering to routing")
+                self.trigger("route")
                 return
             log.debug("Retaining in gathering")
             self.trigger("gather")
+            return
+        if self.state == "routing":
+            log.debug("Advancing from routing to sampling")
+            self.trigger("sample")
             return
         if self.state == "sampling":
             if self.may_gather():
@@ -273,34 +290,36 @@ class Spider:
                 sql.DDL(f"CREATE SCHEMA IF NOT EXISTS {self.configuration.db_schema}"),
             )
 
-        engine = sql.create_engine(
+        self._engine_ = sql.create_engine(
             self.configuration.db_url,
         )
         if self.configuration.db_schema is not None:
-            engine = engine.execution_options(
+            self._engine_ = self._engine_.execution_options(
                 schema_translate_map={None: self.configuration.db_schema}
             )
 
-        self._cache_ = orm.Session(engine)
+        self._cache_ = orm.sessionmaker(
+            self._engine_,
+            autobegin=False,
+        )
 
-        Base.metadata.create_all(engine)
+        Base.metadata.create_all(self._engine_)
 
-        appstate = self._cache_.get(AppMetaData, "1")
-        if appstate is None:
-            appstate = AppMetaData(id="1", iteration=0, version=0)
-            self._cache_.add(appstate)
-            self._cache_.commit()
-        self.appstate = appstate
+        with self._cache_.begin() as session:
+            self.appstate = session.get(AppMetaData, "1") or AppMetaData(
+                id="1", iteration=0, version=0
+            )
+            session.merge(self.appstate)
 
-        log.info(f"Loaded appstate: {appstate}.")
+        log.info(f"Loaded appstate: {self.appstate}.")
 
     def close_database(self, *args) -> None:
         """Closes the database."""
         log.info("Closing database. See you next time.")
 
-        if self._cache_:
-            self._cache_.commit()
-            self._cache_.close()
+        with self._cache_.begin() as session:
+            session.commit()
+            session.close()
             self._cache_ = None
 
     def initialize_seeds(self):
@@ -310,45 +329,9 @@ class Spider:
 
         log.debug(f"Copying seeds to database: {', '.join(self.configuration.seeds)}.")
 
-        # with self._cache_.begin():
-        for layer, seeds in self.configuration.seeds.items():
-            for seed in seeds:
-                if self._cache_.get(SeedList, seed) is None:
-                    _seed = SeedList(id=seed, iteration=0, status="new")
-                    self._cache_.add(_seed)
-                    self._add_task(_seed, layer=layer)
-
-    def _add_task(
-        self, task: Union[SeedList, str], layer: str, parent: Optional[TaskList] = None
-    ):
-        """Adds a task to the task buffer."""
-        if not self._cache_:
-            raise ValueError("Cache is not present.")
-        if not isinstance(task, (SeedList, LayerDenseNodes, str)):
-            raise ValueError(
-                f"Task must be a seed, a node or a node-identifier, but is {type(task).__name__}"
-            )
-
-        node_id = (
-            task.name
-            if isinstance(task, LayerDenseNodes)
-            else task if isinstance(task, str) else task.id
-        )
-
-        if self._cache_.execute(
-            sql.select(TaskList).where(TaskList.node_id == node_id).limit(1)
-        ).scalar():
-            return
-
-        new_task = TaskList(
-            node_id=node_id,
-            status="new",
-            initiated_at=datetime.now(),
-            connector=layer,
-            parent_task_id=parent.id if parent else None,
-        )
-        self._cache_.add(new_task)
-        self._cache_.commit()
+        with self._cache_.begin() as session:
+            for layer, seeds in self.configuration.seeds.items():
+                insert_seeds(session, seeds, layer)
 
     def should_not_stop_sampling(self):
         """Checks if the sampling phase should be stopped.
@@ -357,15 +340,15 @@ class Spider:
         """
         if not self._cache_:
             raise ValueError("Cache is not present.")
-
-        count = (
-            self._cache_.query(SeedList)
-            .filter(
-                SeedList.iteration == self.appstate.iteration + 1,
-                SeedList.status == "new",
+        with self._cache_.begin() as session:
+            count = (
+                session.query(SeedList)
+                .filter(
+                    SeedList.iteration == self.appstate.iteration + 1,
+                    SeedList.status == "new",
+                )
+                .count()
             )
-            .count()
-        )
 
         log.debug(f"{count} seeds in the data set, should stop or retry sampling.")
 
@@ -385,27 +368,30 @@ class Spider:
         if not self._cache_:
             raise ValueError("Cache is not present.")
 
-        candidate_nodes_names = (
-            self._cache_.execute(sql.select(SeedList.id)).scalars().all()
-        )
-
-        candidates = (
-            self._cache_.execute(
-                sql.select(LayerDenseNodes.name).where(
-                    LayerDenseNodes.name.not_in(candidate_nodes_names)
-                )
+        with self._cache_.begin() as session:
+            candidate_nodes_names = (
+                session.execute(sql.select(SeedList.id)).scalars().all()
             )
-            .scalars()
-            .all()
-        )
 
-        self.retry_count += 1
-        self._cache_.add_all(
-            [
-                SeedList(id=seed, iteration=self.appstate.iteration + 1, status="new")
-                for seed in candidates
-            ]
-        )
+            candidates = (
+                session.execute(
+                    sql.select(LayerDenseNodes.name).where(
+                        LayerDenseNodes.name.not_in(candidate_nodes_names)
+                    )
+                )
+                .scalars()
+                .all()
+            )
+
+            self.retry_count += 1
+            session.add_all(
+                [
+                    SeedList(
+                        id=seed, iteration=self.appstate.iteration + 1, status="new"
+                    )
+                    for seed in candidates
+                ]
+            )
 
         log.debug(
             f"{self.retry_count} retry with unused seeds: {', '.join(candidates)}"
@@ -416,37 +402,112 @@ class Spider:
         if not self._cache_:
             raise ValueError("Cache is not present.")
 
-        # with self._cache_.begin():
-        self.appstate.iteration += 1
-        self._cache_.commit()
+        with self._cache_.begin():
+            self.appstate.iteration += 1
 
     def gather_node_data(self):
         """Gathers node data for the first task in queue."""
         if not self._cache_:
             raise ValueError("Cache is not present.")
         # If there are no tasks left, return early to advance to aggregation state
-        if len(self.task_buffer) == 0:
-            return
 
-        task = self.task_buffer.pop(0)
+        iteration_number = self.appstate.iteration
 
-        log.debug(f"Attempting to gather data for {task.node_id}.")
+        with self._cache_.begin() as session:
+            tasks = get_open_tasks(session)
+            if len(tasks) == 0:
+                return
 
-        # Begin transaction with the cache
-        node_info = self._cache_.get(LayerDenseNodes, task.node_id)
+            task = tasks.pop(0)
 
-        if node_info is None:
-            self._dispatch_connector_for_node_(task, task.connector)
+            log.debug(f"Attempting to gather data for {task.node_id}.")
 
-        # Mark the node as done
-        seed = self._cache_.get(SeedList, task.node_id)
+            # Begin transaction with the cache
 
-        if seed is not None:
-            seed.status = "done"
-            seed.last_crawled_at = datetime.now()
-        task.status = "done"
-        task.finished_at = datetime.now()
-        self._cache_.commit()
+            node_info = session.get(LayerDenseNodes, task.node_id)
+
+            if node_info is None:
+                raw_edges, nodes = self._dispatch_connector_for_node_(task)
+                insert_raw_data(
+                    session,
+                    connector_id=task.connector,
+                    output_type="edges",
+                    data=raw_edges.to_dict(orient="records"),
+                    iteration=iteration_number,
+                )
+                insert_raw_data(
+                    session,
+                    connector_id=task.connector,
+                    output_type="nodes",
+                    data=nodes.to_dict(orient="records"),
+                    iteration=iteration_number,
+                )
+
+            # Mark the node as done
+            seed = session.get(SeedList, task.node_id)
+
+            if seed is not None:
+                seed.status = "done"
+                seed.last_crawled_at = datetime.now()
+            task.status = "done"
+            task.finished_at = datetime.now()
+            session.commit()
+
+    def route_raw_data(self):
+        """Routes raw data to the appropriate layer."""
+        if not self._cache_:
+            raise ValueError("Cache is not present.")
+        if not self.configuration:
+            raise ValueError("No configuration loaded.")
+
+        iteration_number = self.appstate.iteration
+
+        for layer, layer_configuration in self.configuration.layers.items():
+            routers = layer_configuration.routers
+            for router_definition in routers:
+                for router_name, router_spec in router_definition.items():
+
+                    log.debug(
+                        f"Routing data with {router_name} and this spec: {router_spec}."
+                    )
+                    router = Router(router_name, router_spec)
+                    with self._cache_.begin() as session:
+                        raw_edges = pd.json_normalize(
+                            pd.read_sql(
+                                sql.select(RawDataStore.data).where(
+                                    (RawDataStore.connector_id == layer)
+                                    & (RawDataStore.output_type == "edges")
+                                    & (RawDataStore.iteration == iteration_number)
+                                ),
+                                session.connection(),
+                            ).data
+                        )
+                        nodes = pd.json_normalize(
+                            pd.read_sql(
+                                sql.select(RawDataStore.data).where(
+                                    (RawDataStore.connector_id == layer)
+                                    & (RawDataStore.output_type == "nodes")
+                                    & (RawDataStore.iteration == iteration_number)
+                                ),
+                                session.connection(),
+                            ).data
+                        )
+                        edges = []
+                        for raw_edge in raw_edges.assign(
+                            iteration=iteration_number
+                        ).to_dict(orient="records"):
+                            edges.extend(router.parse(raw_edge))
+                        insert_layer_dense_edge(session, router_name, edges)
+
+                        if len(nodes) > 0:
+                            nodes["iteration"] = self.appstate.iteration
+
+                            insert_layer_dense_node(
+                                session,
+                                layer,
+                                "default",
+                                nodes.to_dict(orient="records"),
+                            )
 
     def iteration_limit_not_reached(self):
         """Checks if the iteration limit has been reached."""
@@ -464,134 +525,99 @@ class Spider:
         # pylint: disable=R0914
         if not self._cache_:
             raise ValueError("Cache is not present.")
-        for layer_id, layer_config in self.configuration.layers.items():
-            # Get data for the layer from the dense data stores
-            edges = pd.read_sql(
-                self._cache_.query(
-                    LayerDenseEdges.source,
-                    LayerDenseEdges.target,
-                    sql.func.count("*").label("weight"),  # pylint: disable=E1102
-                )
-                .where(LayerDenseEdges.layer_id == layer_id)
-                .group_by(LayerDenseEdges.source, LayerDenseEdges.target)
-                .statement,
-                self._cache_.connection(),
-            )
-            nodes = pd.json_normalize(
-                pd.read_sql(
-                    self._cache_.query(LayerDenseNodes.name, LayerDenseNodes.data)
-                    .where(LayerDenseNodes.layer_id == layer_id)
-                    .statement,
-                    self._cache_.connection(),
-                ).data
-            )
-            sampler_state = pd.json_normalize(
-                pd.read_sql(
-                    sql.select(SamplerStateStore.data).where(
-                        SamplerStateStore.layer_id == layer_id
-                    ),
-                    self._cache_.connection(),
-                ).data
-            )
 
-            log.debug(
-                f"""
-                Sampling layer {layer_id} with {len(edges)} edges and {len(nodes)} nodes.
-                Edges to sample:
-{edges}
+        iteration = self.appstate.iteration
 
-                Nodes to sample:
-{nodes}
-
-                Sampler state:
-{sampler_state}
-"""
-            )
-
-            sampler: Strategy = get_plugin(layer_config.sampler, STRATEGY_GROUP)
-            new_seeds, sparse_edges, sparse_nodes, new_sampler_state = sampler(
-                edges, nodes, sampler_state
-            )
-
-            log.info(f"That's the current state of affairs:\n\n{new_sampler_state}")
-
-            sparse_edges["iteration"] = self.appstate.iteration
-            if len(new_seeds) == 0:
-                log.warning("Found no new seeds.")
-            elif self.retry_count > 0:
-                self.retry_count = 0
-
-            for seed in new_seeds:
-                if seed is None:
-                    continue
-                if self._cache_.get(SeedList, seed) is None:
-                    _seed = SeedList(
-                        id=seed, iteration=self.appstate.iteration + 1, status="new"
+        with self._cache_.begin() as session:
+            for layer_id, layer_config in self.configuration.layers.items():
+                # Get data for the layer from the dense data stores
+                edges = pd.read_sql(
+                    sql.select(
+                        LayerDenseEdges.source,
+                        LayerDenseEdges.target,
+                        sql.func.count("*").label("weight"),  # pylint: disable=E1102
                     )
-                    self._cache_.add(_seed)
-                    self._add_task(_seed, layer=layer_id)
-
-            for edge in sparse_edges.to_dict(orient="records"):
-                if edge["source"] is not None and edge["target"] is not None:
-                    insert_layer_sparse_edge(self._cache_, layer_id, "test", data=edge)
-            for node in sparse_nodes.to_dict(orient="records"):
-                insert_layer_sparse_node(self._cache_, layer_id, "test", node)
-            for state in new_sampler_state.to_dict(orient="records"):
-                insert_sampler_state(
-                    self._cache_, layer_id, self.appstate.iteration, state
+                    .where(LayerDenseEdges.layer_id == layer_id)
+                    .group_by(LayerDenseEdges.source, LayerDenseEdges.target),
+                    session.connection(),
+                )
+                nodes = pd.json_normalize(
+                    pd.read_sql(
+                        sql.select(LayerDenseNodes.name, LayerDenseNodes.data).where(
+                            LayerDenseNodes.layer_id == layer_id
+                        ),
+                        session.connection(),
+                    ).data
+                )
+                sampler_state = pd.json_normalize(
+                    pd.read_sql(
+                        sql.select(SamplerStateStore.data).where(
+                            SamplerStateStore.layer_id == layer_id
+                        ),
+                        session.connection(),
+                    ).data
                 )
 
-            self._cache_.commit()
+                log.debug(
+                    f"""
+                    Sampling layer {layer_id} with {len(edges)} edges and {len(nodes)} nodes.
+                    Edges to sample:
+    {edges}
+
+                    Nodes to sample:
+    {nodes}
+
+                    Sampler state:
+    {sampler_state}
+    """
+                )
+
+                sampler: Strategy = get_plugin(layer_config.sampler, STRATEGY_GROUP)
+                new_seeds, sparse_edges, sparse_nodes, new_sampler_state = sampler(
+                    edges, nodes, sampler_state
+                )
+
+                log.info(f"That's the current state of affairs:\n\n{new_sampler_state}")
+
+                sparse_edges["iteration"] = self.appstate.iteration
+                if len(new_seeds) == 0:
+                    log.warning("Found no new seeds.")
+                elif self.retry_count > 0:
+                    self.retry_count = 0
+
+                insert_seeds(session, new_seeds, layer_id, iteration=iteration + 1)
+
+                insert_layer_sparse_edge(
+                    session,
+                    layer_id,
+                    "test",
+                    sparse_edges.query("source.notna() & target.notna()").to_dict(
+                        orient="records"
+                    ),
+                )
+                insert_layer_sparse_node(
+                    session, layer_id, "test", sparse_nodes.to_dict(orient="records")
+                )
+
+                for state in new_sampler_state.to_dict(orient="records"):
+                    insert_sampler_state(
+                        session, layer_id, self.appstate.iteration, state
+                    )
 
     # section: private methods
 
-    def _dispatch_connector_for_node_(self, node: TaskList, layer: str):
+    def _dispatch_connector_for_node_(
+        self, node: TaskList
+    ) -> Tuple[pd.DataFrame, pd.DataFrame]:
         # pylint: disable=R0914
         if not self.configuration:
             raise ValueError("Configuration or Connector are not present")
         # Get the connector for the layer
+        layer = node.connector
         layer_configuration = self.configuration.layers[layer]
         connector_spec = layer_configuration.connector
         connector = get_plugin(connector_spec, CONNECTOR_GROUP)
 
         log.debug(f"Requesting data for {node.node_id} from {connector_spec}.")
 
-        raw_edges, nodes = connector([node.node_id])
-        routers = layer_configuration.routers
-        for router_definition in routers:
-            for router_name, router_spec in router_definition.items():
-
-                log.debug(
-                    f"Routing data with {router_name} and this spec: {router_spec}."
-                )
-
-                router = Router(router_name, router_spec)
-                for raw_edge in raw_edges.to_dict(orient="records"):
-                    edges = router.parse(raw_edge)
-                    for edge in edges:
-                        edge["iteration"] = self.appstate.iteration
-                        insert_layer_dense_edge(
-                            self._cache_, edge.get("dispatch_with"), router_name, edge
-                        )
-
-                        log.debug(f"Inserted edge: {edge}")
-
-                    if (
-                        layer_configuration.eager is True
-                        and node.parent_task_id is None
-                    ):
-                        #  We add only new task if the parent_task_id is None to avoid snowballing
-                        #  the entire population before we even begin sampling.
-                        targets = {edge.get("target") for edge in edges}
-                        for target in targets:
-                            self._add_task(
-                                target,
-                                parent=node,
-                                layer=router_spec.get("dispatch_with"),
-                            )
-                self._cache_.commit()
-        if len(nodes) > 0:
-            nodes["iteration"] = self.appstate.iteration
-            for _node in nodes.to_dict(orient="records"):
-                insert_layer_dense_node(self._cache_, layer, "default", _node)
-            self._cache_.commit()
+        return connector([node.node_id])

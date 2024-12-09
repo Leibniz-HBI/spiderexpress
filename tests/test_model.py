@@ -56,7 +56,7 @@ def test_seed_list_table(session, create_tables):
     create_tables()
 
     seed_list = SeedList(
-        id="a", status="done", iteration=1, last_crawled_at=datetime.now()
+        id="a", status="done", iteration=1, layer="test", last_crawled_at=datetime.now()
     )
     session.add(seed_list)
     session.commit()
