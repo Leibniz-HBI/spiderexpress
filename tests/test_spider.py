@@ -38,7 +38,7 @@ def test_spider():
 
     assert spider.configuration is not None
     assert spider.is_stopped()
-    assert spider.appstate.iteration > 0
+    assert spider.iteration > 0
 
 
 def test_spider_with_spikyball():
@@ -52,7 +52,7 @@ def test_spider_with_spikyball():
 
     assert spider.is_stopped()
     assert spider.configuration is not None
-    assert spider.appstate.iteration > 0
+    assert spider.iteration > 0
 
 
 def test_get_node():

@@ -195,7 +195,7 @@ class Spider:
         self.strategy: Optional[Strategy] = None
         self._cache_: Optional[orm.sessionmaker] = None
         self._engine_: Optional[sql.Engine] = None
-        self.appstate: Optional[AppMetaData] = None
+        # self.appstate: Optional[AppMetaData] = None
 
     def is_gathering_done(self):
         """Checks if the gathering phase is done."""
@@ -212,7 +212,8 @@ class Spider:
         """Advances the state machine when the current state is done."""
 
         log.debug(
-            f"Current state: {self.state}, called with {', '.join([str(_) for _ in args])}."
+            f"Current state: {self.state}, called with"
+            f"{', '.join([str(_) for _ in args]) or 'nothing'}."
         )
 
         if self.state == "idle":
@@ -305,13 +306,23 @@ class Spider:
 
         Base.metadata.create_all(self._engine_)
 
-        with self._cache_.begin() as session:
-            self.appstate = session.get(AppMetaData, "1") or AppMetaData(
-                id="1", iteration=0, version=0
-            )
-            session.merge(self.appstate)
+    @property
+    def iteration(self) -> int:
+        """Returns the current iteration."""
+        if not self._cache_:
+            raise ValueError("Cache is not present.")
 
-        log.info(f"Loaded appstate: {self.appstate}.")
+        with self._cache_.begin() as session:
+            appstate: Optional[AppMetaData] = session.query(AppMetaData).first()
+            if appstate is None:
+
+                log.warning(
+                    "No appstate found, creating a new one with default values."
+                )
+
+                appstate = AppMetaData(id=1, iteration=0, version=1)
+                session.add(appstate)
+            return appstate.iteration
 
     def close_database(self, *args) -> None:
         """Closes the database."""
@@ -320,7 +331,7 @@ class Spider:
         with self._cache_.begin() as session:
             session.commit()
             session.close()
-            self._cache_ = None
+            # self._cache_ = None
 
     def initialize_seeds(self):
         """Initializes the seed list."""
@@ -340,11 +351,12 @@ class Spider:
         """
         if not self._cache_:
             raise ValueError("Cache is not present.")
+        iteration = self.iteration
         with self._cache_.begin() as session:
             count = (
                 session.query(SeedList)
                 .filter(
-                    SeedList.iteration == self.appstate.iteration + 1,
+                    SeedList.iteration == iteration + 1,
                     SeedList.status == "new",
                 )
                 .count()
@@ -368,6 +380,8 @@ class Spider:
         if not self._cache_:
             raise ValueError("Cache is not present.")
 
+        iteration = self.iteration
+
         with self._cache_.begin() as session:
             candidate_nodes_names = (
                 session.execute(sql.select(SeedList.id)).scalars().all()
@@ -386,9 +400,7 @@ class Spider:
             self.retry_count += 1
             session.add_all(
                 [
-                    SeedList(
-                        id=seed, iteration=self.appstate.iteration + 1, status="new"
-                    )
+                    SeedList(id=seed, iteration=iteration + 1, status="new")
                     for seed in candidates
                 ]
             )
@@ -402,8 +414,9 @@ class Spider:
         if not self._cache_:
             raise ValueError("Cache is not present.")
 
-        with self._cache_.begin():
-            self.appstate.iteration += 1
+        with self._cache_.begin() as session:
+            appstate = session.query(AppMetaData).first()
+            appstate.iteration += 1
 
     def gather_node_data(self):
         """Gathers node data for the first task in queue."""
@@ -411,7 +424,7 @@ class Spider:
             raise ValueError("Cache is not present.")
         # If there are no tasks left, return early to advance to aggregation state
 
-        iteration_number = self.appstate.iteration
+        iteration = self.iteration
 
         with self._cache_.begin() as session:
             tasks = get_open_tasks(session)
@@ -433,14 +446,14 @@ class Spider:
                     connector_id=task.connector,
                     output_type="edges",
                     data=raw_edges.to_dict(orient="records"),
-                    iteration=iteration_number,
+                    iteration=iteration,
                 )
                 insert_raw_data(
                     session,
                     connector_id=task.connector,
                     output_type="nodes",
                     data=nodes.to_dict(orient="records"),
-                    iteration=iteration_number,
+                    iteration=iteration,
                 )
 
             # Mark the node as done
@@ -460,7 +473,7 @@ class Spider:
         if not self.configuration:
             raise ValueError("No configuration loaded.")
 
-        iteration_number = self.appstate.iteration
+        iteration = self.iteration
 
         for layer, layer_configuration in self.configuration.layers.items():
             routers = layer_configuration.routers
@@ -477,7 +490,7 @@ class Spider:
                                 sql.select(RawDataStore.data).where(
                                     (RawDataStore.connector_id == layer)
                                     & (RawDataStore.output_type == "edges")
-                                    & (RawDataStore.iteration == iteration_number)
+                                    & (RawDataStore.iteration == iteration)
                                 ),
                                 session.connection(),
                             ).data
@@ -487,20 +500,20 @@ class Spider:
                                 sql.select(RawDataStore.data).where(
                                     (RawDataStore.connector_id == layer)
                                     & (RawDataStore.output_type == "nodes")
-                                    & (RawDataStore.iteration == iteration_number)
+                                    & (RawDataStore.iteration == iteration)
                                 ),
                                 session.connection(),
                             ).data
                         )
                         edges = []
-                        for raw_edge in raw_edges.assign(
-                            iteration=iteration_number
-                        ).to_dict(orient="records"):
+                        for raw_edge in raw_edges.assign(iteration=iteration).to_dict(
+                            orient="records"
+                        ):
                             edges.extend(router.parse(raw_edge))
                         insert_layer_dense_edge(session, router_name, edges)
 
                         if len(nodes) > 0:
-                            nodes["iteration"] = self.appstate.iteration
+                            nodes["iteration"] = iteration
 
                             insert_layer_dense_node(
                                 session,
@@ -514,7 +527,7 @@ class Spider:
         if not self.configuration:
             raise ValueError("No configuration loaded.")
 
-        return self.appstate.iteration < self.configuration.max_iteration
+        return self.iteration < self.configuration.max_iteration
 
     def iteration_limit_reached(self):
         """Checks if the iteration limit has been reached."""
@@ -526,7 +539,7 @@ class Spider:
         if not self._cache_:
             raise ValueError("Cache is not present.")
 
-        iteration = self.appstate.iteration
+        iteration = self.iteration
 
         with self._cache_.begin() as session:
             for layer_id, layer_config in self.configuration.layers.items():
@@ -579,7 +592,7 @@ class Spider:
 
                 log.info(f"That's the current state of affairs:\n\n{new_sampler_state}")
 
-                sparse_edges["iteration"] = self.appstate.iteration
+                sparse_edges["iteration"] = iteration
                 if len(new_seeds) == 0:
                     log.warning("Found no new seeds.")
                 elif self.retry_count > 0:
@@ -600,9 +613,7 @@ class Spider:
                 )
 
                 for state in new_sampler_state.to_dict(orient="records"):
-                    insert_sampler_state(
-                        session, layer_id, self.appstate.iteration, state
-                    )
+                    insert_sampler_state(session, layer_id, iteration, state)
 
     # section: private methods
 
