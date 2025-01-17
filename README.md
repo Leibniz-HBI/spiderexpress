@@ -84,7 +84,7 @@ You need to supply at least the following information:
 - the name of the project,
 - a path for the seed file.
 
-```bash
+
 ### start
 
 This command starts a `spiderexpress` job with the given configuration file.
