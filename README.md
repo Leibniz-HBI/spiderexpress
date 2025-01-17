@@ -68,7 +68,6 @@ Commands:
 ### create
 
 This command creates a `spiderexpress` project in the current directory.
-By default, the project creation process will be interactive, but this can be disabled by passing the `--non-interactive` flag.
 
 ```bash
 Usage: spiderexpress create [OPTIONS] CONFIG
