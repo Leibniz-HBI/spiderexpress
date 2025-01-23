@@ -18,7 +18,7 @@ layers:
               dispatch_with: test  # This is the name of the layer to dispatch to.
     sampler:
       random_walk:
-        n: 5
+        n: 2
 project_name: spider
 seeds:
   test:

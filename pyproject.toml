@@ -41,6 +41,7 @@ csv = "spiderexpress.connectors.csv:csv"
 [tool.poetry.plugins."spiderexpress.strategies"]
 spikyball = "spiderexpress.strategies.spikyball:spikyball"
 random = "spiderexpress.strategies.random:random"
+random_walk = "spiderexpress.strategies.random_walk:random_walk"
 snowball = "spiderexpress.strategies.snowball:snowball"
 
 [tool.pytest.ini_options]
