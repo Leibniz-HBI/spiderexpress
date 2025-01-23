@@ -154,5 +154,6 @@ notebooks/
 
 # spiderexpress files
 *.pe.yml
+!sevens_grader_*.pe.yml
 
 .DS_Store

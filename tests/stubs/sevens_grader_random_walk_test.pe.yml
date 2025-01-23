@@ -1,0 +1,26 @@
+db_url: sqlite:/// # sevens_grader_random_test.db
+db_schema:
+empty_seeds: stop
+max_iteration: 10000
+layers:
+  test:
+    eager: false
+    connector:
+      csv:
+        node_list_location: tests/stubs/7th_graders/nodes.csv
+        edge_list_location: tests/stubs/7th_graders/edges.csv
+        mode: out
+    routers:
+      - all:  # This is the name of the router and should be the type of edge.
+          source: source  # This is the field that is mapped to the source columns.
+          target:
+            - field: target  # This is the field that is mapped to the target columns.
+              dispatch_with: test  # This is the name of the layer to dispatch to.
+    sampler:
+      random_walk:
+        n: 5
+project_name: spider
+seeds:
+  test:
+    - "1"
+    - "13"
