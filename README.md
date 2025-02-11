@@ -109,7 +109,7 @@ A `spiderexpress` project could for example look like this:
 
 Whereas `my_project.db` is the resulting database, `my_project.pe.yml` is the project's configuration in which a data source and sampling strategy and other parameters may be specified (see [Configuration](#configuration) for further details) and `seed_file.txt` is a text file which contains one node name per line.
 
-For example projects, please refer to the `examples` directory or the unit tests in [/tests/](/tests/).
+For example projects, please refer to the unit tests in [/tests/](/tests/).
 
 ## Configuration
 
