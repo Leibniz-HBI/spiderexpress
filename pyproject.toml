@@ -20,6 +20,10 @@ dependencies=[
     "pydantic"
 ]
 
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
 [project.optional-dependencies]
 dev = [
     "ipykernel",
