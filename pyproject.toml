@@ -1,44 +1,53 @@
-[tool.poetry]
+[project]
 name = "spiderexpress"
 version = "0.2.0a0"
 description = "A multipurpose spidery crawler for social media platforms"
-authors = ["Philipp Kessling <p.kessling@leibniz-hbi.de>"]
+authors = [
+    {"name" = "Philipp Kessling", "email" = "p.kessling@leibniz-hbi.de"},
+    {"name" = "Felix V. Münch", "email" = "f.muench@leibniz-hbi.de"}
+]
 license = "MIT"
-
-[tool.poetry.dependencies]
-python = "^3.10"
-pandas = "*"
-SQLAlchemy = "*"
-loguru = "*"
-numpy = "*"
-click = "*"
-psycopg2-binary = "*"
-PyYAML = "*"
-transitions = "*"
-pydantic = "^2.9.2"
-
-[tool.poetry.dev-dependencies]
-ipykernel = "*"
-pytest = "*"
-pytest-cov = "*"
-black = "*"
-coverage = "*"
-pdoc3 = "*"
-pre-commit = "*"
-isort = "*"
-pylint = "*"
+requires-python=">=3.10,<3.14"
+dependencies=[
+    "pandas",
+    "SQLAlchemy",
+    "loguru",
+    "numpy",
+    "click",
+    "psycopg2-binary",
+    "PyYAML",
+    "transitions",
+    "pydantic"
+]
 
 [build-system]
-requires = ["poetry-core>=1.0.0"]
-build-backend = "poetry.core.masonry.api"
+requires = ["hatchling"]
+build-backend = "hatchling.build"
 
-[tool.poetry.scripts]
+[project.optional-dependencies]
+dev = [
+    "ipykernel",
+    "pytest",
+    "pytest-cov",
+    "coverage",
+    "pdoc3",
+    "pre-commit",
+    "isort",
+    "ruff",
+]
+types = [
+    "mypy",
+    "pandas-stubs",
+    "types-pyyaml",
+]
+
+[project.scripts]
 spiderexpress = 'spiderexpress.cli:cli'
 
-[tool.poetry.plugins."spiderexpress.connectors"]
+[project.entry-points."spiderexpress.connectors"]
 csv = "spiderexpress.connectors.csv:csv"
 
-[tool.poetry.plugins."spiderexpress.strategies"]
+[project.entry-points."spiderexpress.strategies"]
 spikyball = "spiderexpress.strategies.spikyball:spikyball"
 random = "spiderexpress.strategies.random:random"
 snowball = "spiderexpress.strategies.snowball:snowball"
@@ -48,3 +57,14 @@ addopts = "--cov-report html:tests/coverage --cov=spiderexpress --capture=sys"
 
 [tool.isort]
 profile = "black"
+
+[tool.ruff]
+line-length = 88
+indent-width = 4
+
+[tool.ruff.format]
+docstring-code-format = true
+docstring-code-line-length = 40
+
+[tool.ruff.lint]
+select = ["PL", "E", "F", "I", "DOC", "N"]
