@@ -3,8 +3,8 @@ name = "spiderexpress"
 version = "0.2.0a0"
 description = "A multipurpose spidery crawler for social media platforms"
 authors = [
-    {"name" = "Philipp Kessling", "email" = "<p.kessling@leibniz-hbi.de>"},
-    {"name" = "Felix V. Münch", "email" = "<f.muench@leibniz-hbi.de>"}
+    {"name" = "Philipp Kessling", "email" = "p.kessling@leibniz-hbi.de"},
+    {"name" = "Felix V. Münch", "email" = "f.muench@leibniz-hbi.de"}
 ]
 license = "MIT"
 requires-python=">=3.10,<=3.13"
