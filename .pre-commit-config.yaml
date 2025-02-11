@@ -9,27 +9,18 @@ repos:
     -   id: check-yaml
     -   id: check-added-large-files
     -   id: check-toml
-# format code files with black
--   repo: local
-    hooks:
-    -   id: system
-        name: Black
-        entry: poetry run black
-        types: ['python']
-        language: system
-# sort imports with isort
--   repo: local
-    hooks:
-    -   id: system
-        name: isort
-        entry: poetry run isort --profile black
-        types: ['python']
-        language: system
-# run pylint against code base
--   repo: local
-    hooks:
-    -   id: system
-        name: Pylint
-        entry: poetry run pylint -j 0
-        types: ['python']
-        language: system
+# format and lint the code
+- repo: https://github.com/astral-sh/ruff-pre-commit
+  # Ruff version.
+  rev: v0.9.6
+  hooks:
+    # Run the linter.
+    - id: ruff
+    # Run the formatter.
+    - id: ruff-format
+# typecheck the code
+- repo: https://github.com/pre-commit/mirrors-mypy
+  rev: ''  # Use the sha / tag you want to point at
+  hooks:
+    -   id: mypy
+        args: [--strict, --ignore-missing-imports]
